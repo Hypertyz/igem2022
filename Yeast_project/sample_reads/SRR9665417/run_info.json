@@ -1,0 +1,13 @@
+{
+	"n_targets": 6716,
+	"n_bootstraps": 1000,
+	"n_processed": 30738524,
+	"n_pseudoaligned": 27790647,
+	"n_unique": 26833480,
+	"p_pseudoaligned": 90.4,
+	"p_unique": 87.3,
+	"kallisto_version": "0.46.1",
+	"index_version": 10,
+	"start_time": "Thu Jun 16 01:36:34 2022",
+	"call": "/mnt/a/IGEM/kallisto/kallisto quant -i transcripts.idx -o SRR9665417 -b 1000 --bias --single-overhang -t 16 Samples/Trimmed/SRR9665417_1.140bp_3prime.fq.gz Samples/Trimmed/SRR9665417_2.140bp_3prime.fq.gz"
+}

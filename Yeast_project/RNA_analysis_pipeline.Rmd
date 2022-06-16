@@ -1,0 +1,117 @@
+---
+title: "RNA_analysis"
+author: "Hypertyz"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(DESeq2)
+library(tximport)
+library(EnhancedVolcano)
+library(ggpubr)
+
+file_names = c("SRR9665408",
+          "SRR9665409",
+          "SRR9665410",
+          "SRR9665411",
+          "SRR9665412",
+          "SRR9665413",
+          "SRR9665414",
+          "SRR9665415",
+          "SRR9665416",
+          "SRR9665417",
+          "SRR9665418",
+          "SRR9665419"
+)
+
+```
+
+## RNA-seq analysis to detect promoter sequences
+
+```{r load data}
+abundance <- read.delim(paste("~/GitHub/igem2022/igem2022/Yeast_project/sample_reads/", file_names[1], "/abundance.tsv",
+                              sep = ""))
+
+abundance <- abundance %>% select(target_id, tpm) %>% rename_with(recode, tpm = file_names[1])
+
+
+
+for (i in 2:length(files)) {
+  tmp <- read.delim(paste("~/GitHub/igem2022/igem2022/Yeast_project/sample_reads/", file_names[i], "/abundance.tsv",
+                          sep = ""))
+  
+  abundance <- tmp %>% select(target_id, tpm) %>%  rename_with(recode, tpm = file_names[i]) %>% left_join(abundance, by ="target_id")
+  
+}
+
+```
+
+```{r prepare matrix}
+source("y00_functions.R")
+metaData <- read_clean_metaData()
+metaData <- metaData[-5:-7]
+
+files <- file.path("./sample_reads", file_names, "abundance.h5")
+
+names(files) <- paste0(metaData$Name)
+
+txi.kallisto <- tximport(files, type = "kallisto", txOut = TRUE)
+
+ddsTxi <- DESeqDataSetFromTximport(txi.kallisto,
+                                   colData = metaData,
+                                   design = ~ condition)
+
+```
+
+```{r DESeq2}
+dds <- DESeq(ddsTxi)
+res <- results(dds, contrast=c("condition","Fa","C"))
+
+res <- res[order(res$padj),]
+summary(res)
+head(res)
+
+```
+```{r Volcano plot}
+
+theme_set(theme_pubr())
+
+pCutoff = 0.05
+FCcutoff = 1.0
+
+res_df <- as.data.frame(res@listData)
+g_names <- as.data.frame(res@rownames)
+
+res_df <- cbind(g_names, res_df)
+colnames(res_df)[1] <- "Gene_id"
+
+res_df <- res_df %>% filter(padj <0.05 & log2FoldChange > 2.0)
+#Interesting genes
+
+# YOR388C
+# YNR034W-A
+# YOL052C-A
+# chosen_genes <- c("YOR388C","YNR034W-A","YOL052C-A")
+chosen_genes <- c(res_df$Gene_id)
+
+
+EnhancedVolcano(res,
+                lab = rownames(res),
+                selectLab = chosen_genes[0:3],
+                x = 'log2FoldChange',
+                y = 'pvalue',
+                title = "Furfural",
+                subtitle = bquote(italic(" ")),
+                legendPosition = 'top',
+                pCutoff = pCutoff,
+                FCcutoff = FCcutoff,
+                drawConnectors = TRUE,
+                widthConnectors = 1.0,
+                ylim = c(0,350),
+                xlim = c(-5,8)
+                )
+
+
+```
