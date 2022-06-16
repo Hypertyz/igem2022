@@ -31,6 +31,7 @@ read_clean_countData <- function(...){
 ###
 
 display_venn <- function(x, ...){
+  futile.logger::flog.threshold(futile.logger::ERROR, name = "VennDiagramLogger")
   library(VennDiagram)
   grid.newpage()
   venn_object <- venn.diagram(x, filename = NULL, ...)
