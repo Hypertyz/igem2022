@@ -119,8 +119,34 @@ EnhancedVolcano(res,
 ```{r annotation}
 gene_info <- read.csv("./sample_info/gene_info.csv", header=FALSE, row.names=NULL, stringsAsFactors=TRUE)
 
-colnames(gene_info) <- c("Geneid", "Gene_name", "Loci")
+colnames(gene_info) <- c("Gene_id", "Gene_name", "Loci")
 
+res_df <- res_df %>% left_join(gene_info, by = "Gene_id")
 
+```
 
+```{r promoters}
+library("Biostrings")
+
+genome = readDNAStringSet("./sample_info/S288C_reference_sequence_R64-3-1_20210421.fsa")
+
+annot_dict <- c("I"=1,
+                "II"=2,
+                "III"=3,
+                "IV"=4,
+                "V"=5,
+                "VI"=6,
+                "VII"=7,
+                "VIII"=8,
+                "IX"=9,
+                "X"=10,
+                "XI"=11,
+                "XII"=12,
+                "XIII"=13,
+                "XIV"=14,
+                "XV"=15,
+                "XVI"=16,
+                "Mito"=17)
+
+res_df %>% mutate(nuc_seq = as.character(genome[[annot_dict[strsplit(as.character(Loci), " ")[[1]][2]]]][as.numeric(strsplit(strsplit(as.character(Loci), " ")[[1]][4], "-")[[1]][1]):as.numeric(strsplit(strsplit(as.character(Loci), " ")[[1]][4], "-")[[1]][2])])) # Spaghetti code
 ```
