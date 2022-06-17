@@ -22,8 +22,13 @@ out = []
 # Strips the newline character
 for idx, line in enumerate(Lines):
     if ">" in line:
-        out.append(line[1:])
-
+        keep = line.split()
+        keep = keep[0][1:] + "," + keep[1] + ","
+        start = line.find("Chr")
+        end = line.find("Genome Release")
+        keep = keep + line[start:end-2].replace(",",";") + "\n"
+        out.append(keep)
+        
 f = open("gene_info.csv", "a")
 f.writelines(out)
 f.close()

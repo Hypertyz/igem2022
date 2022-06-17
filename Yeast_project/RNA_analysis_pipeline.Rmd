@@ -31,15 +31,15 @@ file_names = c("SRR9665408",
 ## RNA-seq analysis to detect promoter sequences
 
 ```{r load data}
-abundance <- read.delim(paste("~/GitHub/igem2022/igem2022/Yeast_project/sample_reads/", file_names[1], "/abundance.tsv",
+abundance <- read.delim(paste("./sample_reads/", file_names[1], "/abundance.tsv",
                               sep = ""))
 
 abundance <- abundance %>% select(target_id, tpm) %>% rename_with(recode, tpm = file_names[1])
 
 
 
-for (i in 2:length(files)) {
-  tmp <- read.delim(paste("~/GitHub/igem2022/igem2022/Yeast_project/sample_reads/", file_names[i], "/abundance.tsv",
+for (i in 2:length(file_names)) {
+  tmp <- read.delim(paste("./sample_reads/", file_names[i], "/abundance.tsv",
                           sep = ""))
   
   abundance <- tmp %>% select(target_id, tpm) %>%  rename_with(recode, tpm = file_names[i]) %>% left_join(abundance, by ="target_id")
@@ -112,6 +112,15 @@ EnhancedVolcano(res,
                 ylim = c(0,350),
                 xlim = c(-5,8)
                 )
+
+
+```
+
+```{r annotation}
+gene_info <- read.csv("./sample_info/gene_info.csv", header=FALSE, row.names=NULL, stringsAsFactors=TRUE)
+
+colnames(gene_info) <- c("Geneid", "Gene_name", "Loci")
+
 
 
 ```
