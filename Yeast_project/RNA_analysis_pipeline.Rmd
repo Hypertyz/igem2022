@@ -57,13 +57,15 @@ files <- file.path("./sample_reads", file_names, "abundance.h5")
 
 names(files) <- paste0(metaData$Name)
 
-txi.kallisto <- tximport(files, type = "kallisto", txOut = TRUE)
+txi.kallisto <- tximport(files, type = "kallisto", txOut = TRUE, countsFromAbundance = "lengthScaledTPM")
 
 ddsTxi <- DESeqDataSetFromTximport(txi.kallisto,
                                    colData = metaData,
                                    design = ~ condition)
 
 ```
+
+### DESeq2
 
 ```{r DESeq2}
 dds <- DESeq(ddsTxi)
@@ -74,12 +76,13 @@ summary(res)
 head(res)
 
 ```
+
 ```{r Volcano plot}
 
 theme_set(theme_pubr())
 
 pCutoff = 0.05
-FCcutoff = 1.0
+FCcutoff = 2.0
 
 res_df <- as.data.frame(res@listData)
 g_names <- as.data.frame(res@rownames)
@@ -166,7 +169,6 @@ res_df <- cbind(res_df, nuc_seq)
 
 promo_seq <- c()
 
-
 for (i in 1:length(res_df$Loci)){
   if (grepl( ";", res_df$Loci[i], fixed = TRUE)) {
     promo_seq_MM <- c()
@@ -187,5 +189,38 @@ for (i in 1:length(res_df$Loci)){
     }
   }
 }
+
+res_df <- cbind(res_df, promo_seq)
+
+strand <- c()
+
+for (i in 1:length(res_df$Loci)){
+  if (grepl( ";", res_df$Loci[i], fixed = TRUE)) {
+    strand_MM <- c()
+    for (j in 1:length(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]])){
+      if (as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1]) < as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][2])) {
+        strand_MM <- append(strand_MM, "+")
+      } else {
+        strand_MM <- append(strand_MM, "-")
+      }
+      }
+    strand_MM <- paste(strand_MM, collapse = ";")
+    strand <- append(strand, strand_MM)
+  } else {
+    if (as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1]) < as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][2])) {
+      strand <- append(strand, "+")
+    } else {
+      strand <- append(strand, "-")
+    }
+  }
+}
+
+res_df <- cbind(res_df, strand)
+
+res_df %>% filter(strand == "+" | strand == "-") %>% select(promo_seq)
+
+```
+
+```{r save}
 
 ```
