@@ -26,15 +26,23 @@ Aa_Fa_C <- readRDS("R_outputs/Aa_Fa_C6.rds")
 #-------------------------------limited Venn diagram----------------------------
 # Only investigating what significant genes they have in common
 pval_threshold <- 0.05
+FC_threshold <- 1
 x3 <- list(
-  l_Fa_C = row.names(Fa_C[which(Fa_C$padj <= pval_threshold), ]),
-  l_Aa_C = row.names(Aa_C[which(Aa_C$padj <= pval_threshold), ]),
-  l_Aa_Fa_C = row.names(Aa_Fa_C[which(Aa_Fa_C$padj <= pval_threshold), ])
+  l_Fa_C = row.names(Fa_C[which(Fa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ]),
+  l_Aa_C = row.names(Aa_C[which(Aa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ]),
+  l_Aa_Fa_C = row.names(Aa_Fa_C[which(Aa_Fa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ])
 )
+
+x3 <- list(
+  l_Fa_C = row.names(Fa_C[which(Fa_C$padj <= pval_threshold & Fa_C$log2FoldChange<FC_threshold ), ]),
+  l_Aa_C = row.names(Aa_C[which(Aa_C$padj <= pval_threshold & Fa_C$log2FoldChange<FC_threshold ), ]),
+  l_Aa_Fa_C = row.names(Aa_Fa_C[which(Aa_Fa_C$padj <= pval_threshold & Fa_C$log2FoldChange<FC_threshold ), ])
+)
+
 
 source("y00_functions.R")
 display_venn(x3,
-             category.names = c("Fa", "Aa", "Aa_Fa"),
+             category.names = c("Furfural", "Acidic acid", "Acidic acid + furfural"),
              # Circles
              lwd = 2,
              lty = 'blank',
@@ -49,6 +57,7 @@ display_venn(x3,
              cat.default.pos = "outer",
              cat.dist = c(-0.03, -0.03, -0.03)
 )
+
 
 # Save the picture in high quality
 venn.diagram(x3, filename = "R_outputs/VennD.png",
@@ -71,52 +80,53 @@ venn.diagram(x3, filename = "R_outputs/VennD.png",
 
 
 
-#FIX THIS CODE! OLD STUFF SAVE FOR LATER!
-#------Write tables with DEGs in different contrasts----------------------------
-#-----WE DON'T HAVE ANY ANNOTATION YET!-----------------------------------------
+#DON'T TRUST THE CODE BELOW!!!!
 
-# from 00_functions-----------CHANGE THIS!--------------------------------------
-# source("y00_functions.R")
-# top20_Aa_Fa_C <- makeTop20DEGsTable(res_Ax_NonAx, annotation)
-# top20_Axenic_YP206 <- makeTop20DEGsTable(Fa_C, annotation)
-# top20_Axenic_YP26 <- makeTop20DEGsTable(Aa_C, annotation)
-# 
-# #-----Function that write the names of genes in common
-# #Maybe change this so you get ALL of the genes so that you can for example get the three common genes.
-# gc(verbose = TRUE, reset = TRUE)
-# # prepare data
+#Extract the names of the genes that are upregulated and interesting: 
+l_Fa_C = row.names(Fa_C[which(Fa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ])
+l_Aa_C = row.names(Aa_C[which(Aa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ])
+l_Aa_Fa_C = row.names(Aa_Fa_C[which(Aa_Fa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ])
+
+#Find the 148 DEGs that are unique to furfural
+Unique_DEGs_fur <- l_Fa_C[!l_Aa_Fa_C]  #  %in% l_Fa_C& !l_Aa_C %in% l_Fa_C 
+length(Unique_DEGs_fur) #only 139????
+
+#Find the 30 DEGs that are shared with furfural and furfural + acedic acid
+shared_DEGs <- l_Fa_C[l_Fa_C %in% l_Aa_Fa_C & !l_Aa_C %in% l_Aa_Fa_C ]
+length(shared_DEGs)
+
+#test <- annotation[annotation$TranscriptID %in% rownames(res_Ax_NonAx),]
 # input <-  list(
-#   top20_Aa_Fa_C = top20_Aa_Fa_C,
-#   top20_Axenic_YP206     = top20_Axenic_YP206, 
-#   top20_Axenic_YP26      = top20_Axenic_YP26)
-# 
-# # from 00_functions
-# DEGs_allocation <- sharedDEGs(input)
-# 
-# #merge to annotation WRITE THIS AS A FUNCTION!!!!!
-# 
-# DEG_names <- DEGs_allocation$all_DEGs_unique
-# DEG_annotation <- annotation[annotation$TranscriptID == DEG_names[1],]
-# 
-# for (i in DEG_names[-1]){
-#   temp = annotation[annotation$TranscriptID == i,]
-#   DEG_annotation=rbind(DEG_annotation,temp)
-# }
-# 
-# #choosing the first information in InterPro section
-# interpro_info <- DEG_annotation$InterPro
-# interpro_info <- sapply(strsplit(interpro_info, ";"), '[',1)
-# 
-# DEG_annotation_simple <- cbind(DEGs_allocation,
-#                                DEG_annotation$Name, 
-#                                DEG_annotation$Product, 
-#                                interpro_info)
-# 
-# write.csv2(DEG_annotation_simple,"R_outputs/top20_Shared_DEGs.csv", row.names = T)
-# 
-# View(DEG_annotation_simple)
+#   DEG_table1 = top20_Axenic_YP206, 
+#   DEG_table2 = top20_Axenic_YP26, 
+#   DEG_table3 = top20_NonAxenic_YP206
+# )
 
-# -----trash for now---
-#maybe this is much smarter but idk. instead of make tables functions
-# test <- annotation[annotation$TranscriptID %in% rownames(res_Ax_NonAx),]
-# View(test)
+input <- x3
+res <- Fa_C
+sharedDEGs <- function(input,res){
+
+  temp1 <- input[[1]]
+  temp2 <- input[[2]]
+  temp3 <- input[[3]]
+  
+  # Make a list of unique gene names from the table
+  all_DEGs_unique <- unique(c(temp1, temp2, temp3))
+  
+  # Get a TRUE/FALSE vector that tels whether a certain DEG
+  names <- temp1[all_DEGs_unique %in% temp1]
+  temp11 <- c(all_DEGs_unique %in% temp1)
+  temp22 <- c(all_DEGs_unique %in% temp2)
+  temp33 <- c(all_DEGs_unique %in% temp3)
+
+  DEGs_allocation <- cbind(names, temp11, temp22, temp33)
+  
+  # Get their padj values and Log2FC values in furfural
+  m <- as.data.frame <- Fa_C
+  test <- m[m %in% DEGs_allocation] #Doesnt work
+  
+  return(DEGs_allocation)
+}
+
+#DEGs_test <- sharedDEGs(input)
+
