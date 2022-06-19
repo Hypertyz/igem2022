@@ -217,10 +217,12 @@ for (i in 1:length(res_df$Loci)){
 
 res_df <- cbind(res_df, strand)
 
-res_df %>% filter(strand == "+" | strand == "-") %>% select(promo_seq)
+# prom_can <- res_df %>% filter(strand == "+" | strand == "-") %>% select(promo_seq)
+prom_can <- res_df %>% filter(strand == "+") %>% select(promo_seq)
 
 ```
 
 ```{r save}
-
+write.table(prom_can, "./R_outputs/promoters.csv", append = FALSE, sep = "\n",
+            row.names = FALSE, col.names = FALSE, quote = FALSE)
 ```
