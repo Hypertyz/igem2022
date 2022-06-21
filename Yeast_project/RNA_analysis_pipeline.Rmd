@@ -174,18 +174,18 @@ for (i in 1:length(res_df$Loci)){
     promo_seq_MM <- c()
     for (j in 1:length(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]])){
       if (as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1]) < as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][2])) {
-        promo_seq_MM <- append(promo_seq_MM, paste(j, "-", as.character(genome[[annot_dict[strsplit(as.character(res_df$Loci[i]), " ")[[1]][2]]]][as.numeric(as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1])-30):as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1])]), sep = ""))
+        promo_seq_MM <- append(promo_seq_MM, paste(j, "-", as.character(genome[[annot_dict[strsplit(as.character(res_df$Loci[i]), " ")[[1]][2]]]][as.numeric(as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1])-999):as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1])]), sep = ""))
       } else {
-        promo_seq_MM <- append(promo_seq_MM, paste(j, "-", as.character(genome[[annot_dict[strsplit(as.character(res_df$Loci[i]), " ")[[1]][2]]]][as.numeric(as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1])+30):as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1])]), sep = ""))
+        promo_seq_MM <- append(promo_seq_MM, paste(j, "-", as.character(genome[[annot_dict[strsplit(as.character(res_df$Loci[i]), " ")[[1]][2]]]][as.numeric(as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1])+999):as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1])]), sep = ""))
       }
       }
     promo_seq_MM <- paste(promo_seq_MM, collapse = ";")
     promo_seq <- append(promo_seq, promo_seq_MM)
   } else {
     if (as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1]) < as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][2])) {
-      promo_seq <- append(promo_seq, as.character(genome[[annot_dict[strsplit(as.character(res_df$Loci[i]), " ")[[1]][2]]]][as.numeric(as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1])-30):as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1])]))
+      promo_seq <- append(promo_seq, as.character(genome[[annot_dict[strsplit(as.character(res_df$Loci[i]), " ")[[1]][2]]]][as.numeric(as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1])-999):as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1])]))
     } else {
-      promo_seq <- append(promo_seq, as.character(genome[[annot_dict[strsplit(as.character(res_df$Loci[i]), " ")[[1]][2]]]][as.numeric(as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1])+30):as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1])]))
+      promo_seq <- append(promo_seq, as.character(genome[[annot_dict[strsplit(as.character(res_df$Loci[i]), " ")[[1]][2]]]][as.numeric(as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1])+999):as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1])]))
     }
   }
 }
@@ -225,4 +225,8 @@ prom_can <- res_df %>% filter(strand == "+") %>% select(promo_seq)
 ```{r save}
 write.table(prom_can, "./R_outputs/promoters.csv", append = FALSE, sep = "\n",
             row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+write.table(res_df, "./R_outputs/DEseq_result.csv", append = FALSE, sep = ",",
+            row.names = FALSE, col.names = FALSE, quote = FALSE)
+
 ```
