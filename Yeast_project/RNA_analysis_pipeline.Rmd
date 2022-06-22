@@ -99,12 +99,11 @@ res_df <- res_df %>% filter(padj <0.05 & log2FoldChange > 2.0)
 # chosen_genes <- c("YOR388C","YNR034W-A","YOL052C-A")
 chosen_genes <- c(res_df$Gene_id)
 
-
 EnhancedVolcano(res,
                 lab = rownames(res),
                 selectLab = chosen_genes[0:3],
                 x = 'log2FoldChange',
-                y = 'pvalue',
+                y = 'padj',
                 title = "Furfural",
                 subtitle = bquote(italic(" ")),
                 legendPosition = 'top',

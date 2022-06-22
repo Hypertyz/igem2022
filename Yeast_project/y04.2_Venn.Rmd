@@ -1,0 +1,179 @@
+---
+title: "Venn Diagram"
+author: "Trine Bertram Rasmussen"
+date: '2022-06-22'
+output: html_document
+---
+
+This script makes two Venn diagrams with up- and down-regulated DEGs. 
+It is easy to filter out DEGs based on their LFC or p-values. For example by
+choosing only the DEGs with p < 0.05 and LFC>1 or LFC < -1
+
+```{r setup, include=FALSE}
+
+library("ggplot2") #for plotting
+library("DESeq2") # for DESeq analysis
+
+#setwd("./Yeast_project/")
+
+# made in 03_DESeqObject
+dds <- readRDS("R_outputs/dds.rds") #DESeq object
+res <- readRDS("R_outputs/res.rds") #result table from DESeq object
+
+# contrasts
+Fa_C <- readRDS("R_outputs/Fa_C.rds")
+Aa_C <- readRDS("R_outputs/Aa_C.rds")
+Aa_Fa_C <- readRDS("R_outputs/Aa_Fa_C.rds")
+
+```
+
+
+
+```{r display_Venn, fig.height=7, fig.width=7}
+# Only investigating what significant genes they have in common
+pval_threshold <- 0.05
+FC_threshold <- 1
+
+DEGs_up <- list(
+  l_Fa_C = row.names(Fa_C[which(Fa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ]),
+  l_Aa_C = row.names(Aa_C[which(Aa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ]),
+  l_Aa_Fa_C = row.names(Aa_Fa_C[which(Aa_Fa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ])
+)
+
+FC_threshold <- -1
+
+DEGs_down <- list(
+  l_Fa_C = row.names(Fa_C[which(Fa_C$padj <= pval_threshold & Fa_C$log2FoldChange<FC_threshold ), ]),
+  l_Aa_C = row.names(Aa_C[which(Aa_C$padj <= pval_threshold & Fa_C$log2FoldChange<FC_threshold ), ]),
+  l_Aa_Fa_C = row.names(Aa_Fa_C[which(Aa_Fa_C$padj <= pval_threshold & Fa_C$log2FoldChange<FC_threshold ), ])
+)
+
+source("y00_functions.R")
+display_venn(DEGs_up,
+             category.names = c("Furfural", "Acidic acid", "Acidic acid + furfural"),
+             # Circles
+             lwd = 2,
+             lty = 'blank',
+             fill =c("#E69F00", "#0072B2","#009E73"),
+             # Numbers
+             fontfamily = "sans",
+             cex = 1.6,
+             # Set names
+             main = "Up-regulated DEGs",
+             main.cex = 2.4,
+             main.fontfamily = "sans",
+             cat.cex = 1.3,
+             cat.fontface = "bold",
+             cat.fontfamily = "sans",
+             cat.default.pos = "outer",
+             cat.dist = c(-0.03, -0.03, -0.03)
+)
+
+display_venn(DEGs_down,
+             category.names = c("Furfural", "Acidic acid", "Acidic acid + furfural"),
+             # Circles
+             lwd = 2,
+             lty = 'blank',
+             fill =c("#E69F00", "#0072B2","#009E73"),
+             # Numbers
+             fontfamily = "sans",
+             cex = 1.6,
+             # Set names
+            main = "Down-regulated DEGs down",
+            main.cex = 2.4,
+            main.fontfamily = "sans",
+             cat.cex = 1.3,
+             cat.fontface = "bold",
+             cat.fontfamily = "sans",
+             cat.default.pos = "outer",
+             cat.dist = c(-0.03, -0.03, -0.03)
+)
+
+```
+
+
+```{r save_Venn}
+
+# Save the picture in high quality
+venn.diagram(DEGs_up, filename = "R_outputs/VennD_DEGs_up.png",
+             category.names = c("YP206 vs. Axenic", "YP26 vs. Axenic", "NonAxenic vs. Axenic"),
+             # Circles
+             lwd = 2,
+             lty = 'blank',
+             fill =c("#E69F00", "#0072B2","#009E73"),
+             # Numbers
+             fontfamily = "sans",
+             cex = 1.6,
+             # Set names
+            main = "Up-regulated DEGs",
+             main.cex = 2.4,
+             main.fontfamily = "sans",
+             cat.cex = 1.4,
+             cat.fontface = "bold",
+             cat.fontfamily = "sans",
+             cat.default.pos = "outer",
+             cat.dist = c(-0.03, -0.03, -0.03),
+             imagetype = "png"
+)
+
+
+venn.diagram(DEGs_down, filename = "R_outputs/VennD_DEGs_down.png",
+             category.names = c("YP206 vs. Axenic", "YP26 vs. Axenic", "NonAxenic vs. Axenic"),
+             # Circles
+             lwd = 2,
+             lty = 'blank',
+             fill =c("#E69F00", "#0072B2","#009E73"),
+             # Numbers
+             fontfamily = "sans",
+             cex = 1.6,
+             # Set names
+            main = "Down-regulated DEGs",
+             main.cex = 2.4,
+             main.fontfamily = "sans",
+             cat.cex = 1.4,
+             cat.fontface = "bold",
+             cat.fontfamily = "sans",
+             cat.default.pos = "outer",
+             cat.dist = c(-0.03, -0.03, -0.03),
+             imagetype = "png"
+)
+
+```
+
+## Make a csv with up-regualted DEGs in response to furfural
+
+Maybe make this into a function, because this is not super practical
+
+```{r make csv}
+#Extract the names of the genes that are upregulated and interesting: 
+l_Fa_C = row.names(Fa_C[which(Fa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ])
+l_Aa_C = row.names(Aa_C[which(Aa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ])
+l_Aa_Fa_C = row.names(Aa_Fa_C[which(Aa_Fa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ])
+
+
+all_DEGs <- unique(c(l_Fa_C, l_Aa_C, l_Aa_Fa_C))
+length(all_DEGs) #466
+
+# Find the genes that are UNIQUE to furfural (not shared with acedic acid)
+Unique_DEGs_fur <- all_DEGs[!all_DEGs %in% l_Aa_C & !all_DEGs %in% l_Aa_Fa_C] 
+length(Unique_DEGs_fur) #114
+
+# Find the genes that are upregualted with furfural but also acedic acid
+shared_DEGs <- l_Aa_Fa_C[l_Aa_Fa_C %in% l_Fa_C & !l_Aa_Fa_C %in% l_Aa_C]
+length(shared_DEGs) #43
+
+#Final list of upregulated DEGs:
+DEGs_up_fur <- c(Unique_DEGs_fur,shared_DEGs)
+
+#Generate a res table from the Fa_C with the DEGs of interest
+res_DEGs_up_fur <- Fa_C[DEGs_up_fur,]
+nrow(res_DEGs_up_fur) #157
+
+write.csv(res_DEGs_up_fur, "R_outputs/res_DEGs_up_fur.csv")
+
+```
+
+
+
+
+

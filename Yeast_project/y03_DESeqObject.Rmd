@@ -1,0 +1,130 @@
+---
+title: "y03_DESeqObject"
+author: "Trine Bertram Rasmussen"
+date: '2022-06-22'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(DESeq2)
+library(tximport)
+library(EnhancedVolcano)
+library(ggpubr)
+
+file_names = c("SRR9665408",
+          "SRR9665409",
+          "SRR9665410",
+          "SRR9665411",
+          "SRR9665412",
+          "SRR9665413",
+          "SRR9665414",
+          "SRR9665415",
+          "SRR9665416",
+          "SRR9665417",
+          "SRR9665418",
+          "SRR9665419"
+)
+```
+
+## RNA-seq analysis to detect promoter sequences
+
+```{r load data}
+abundance <- read.delim(paste("./sample_reads/", file_names[1], "/abundance.tsv",
+                              sep = ""))
+
+abundance <- abundance %>% select(target_id, tpm) %>% rename_with(recode, tpm = file_names[1])
+
+
+for (i in 2:length(file_names)) {
+  tmp <- read.delim(paste("./sample_reads/", file_names[i], "/abundance.tsv",
+                          sep = ""))
+  
+  abundance <- tmp %>% select(target_id, tpm) %>%  rename_with(recode, tpm = file_names[i]) %>% left_join(abundance, by ="target_id")
+}
+
+```
+
+```{r prepare matrix}
+source("y00_functions.R")
+metaData <- read_clean_metaData()
+metaData <- metaData[-5:-7]
+
+files <- file.path("./sample_reads", file_names, "abundance.h5")
+
+names(files) <- paste0(metaData$Name)
+
+txi.kallisto <- tximport(files, type = "kallisto", txOut = TRUE, countsFromAbundance = "lengthScaledTPM")
+
+ddsTxi <- DESeqDataSetFromTximport(txi.kallisto,
+                                   colData = metaData,
+                                   design = ~ condition)
+
+```
+
+### DESeq2
+
+
+## DESeq2
+
+```{r DESeq2}
+dds <- DESeq(ddsTxi)
+
+Fa_C_unshrunken <- results(dds, contrast=c("condition","Fa","C"))
+
+Aa_C_unshrunken <- results(dds, contrast=c("condition","Aa","C"))
+
+Aa_Fa_C_unshrunken <- results(dds, contrast=c("condition","Aa_Fa","C"))
+
+# with shrunken LFC values
+Fa_C <- lfcShrink(dds, contrast=c("condition","Fa","C"), res=Fa_C_unshrunken, type="ashr")
+
+Aa_C <- lfcShrink(dds, contrast=c("condition","Aa","C"), res=Aa_C_unshrunken,type="ashr")
+
+Aa_Fa_C <- lfcShrink(dds, contrast=c("condition","Aa_Fa","C"), res=Aa_Fa_C_unshrunken,type="ashr")
+
+#WOOPS I'm getting this warning that I haven't solved: 
+#warning: solve(): system is singular (rcond: 5.32941e-17); attempting approx solution
+
+```
+
+
+## save objects
+```{r save}
+res <- res[order(res$padj),]
+summary(res)
+head(res)
+
+saveRDS(dds, "R_outputs/dds.rds")
+saveRDS(res, "R_outputs/res.rds")
+
+
+Fa_C_unshrunken <- Fa_C_unshrunken[order(Fa_C_unshrunken$padj),]
+Aa_C_unshrunken <- Aa_C_unshrunken[order(Aa_C_unshrunken$padj),]
+Aa_Fa_C_unshrunken <- Aa_Fa_C_unshrunken[order(Aa_Fa_C_unshrunken$padj),]
+
+# sort so that the small padj are in the top of the res tables.
+Fa_C <- Fa_C[order(Fa_C$padj),]
+Aa_C <- Aa_C[order(Aa_C$padj),]
+Aa_Fa_C <- Aa_Fa_C[order(Aa_Fa_C$padj),]
+
+saveRDS(Fa_C_unshrunken, "R_outputs/Fa_C_unshrunken.rds")
+saveRDS(Aa_C_unshrunken, "R_outputs/Aa_C_unshrunken.rds")
+saveRDS(Aa_Fa_C_unshrunken, "R_outputs/Aa_Fa_C_unshrunken.rds")
+
+saveRDS(Fa_C, "R_outputs/Fa_C.rds")
+saveRDS(Aa_C, "R_outputs/Aa_C.rds")
+saveRDS(Aa_Fa_C, "R_outputs/Aa_Fa_C.rds")
+
+```
+
+
+
+
+
+
+
+
+
+
+

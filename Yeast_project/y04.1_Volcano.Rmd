@@ -1,0 +1,218 @@
+---
+title: "y04.1_Volcano"
+author: "Trine Bertram Rasmussen"
+date: '2022-06-22'
+output: html_document
+---
+
+This script makes volcano plots and as MA-plot. I compare the data with unshrunken LFC to 
+data with shrunken LFC with these plots. It does lower the LFC a lot but doesnt seem to
+affect the significant DEGs which is good. 
+Lets continue the analysis with shrunken LFC.
+
+```{r setup, include=FALSE}
+
+library("ggplot2") #for plotting
+library("DESeq2") # for DESeq analysis
+library("EnhancedVolcano")
+library(ggpubr)
+library("patchwork") # for merging the three volcano plots
+
+setwd("./")
+
+#made in 03_DESeqObject
+dds <- readRDS("R_outputs/dds.rds") #DESeq object
+res <- readRDS("R_outputs/res.rds") #result table from DESeq object
+
+# contrasts
+Fa_C_unshrunken <- readRDS("R_outputs/Fa_C_unshrunken.rds")
+Aa_C_unshrunken <- readRDS("R_outputs/Aa_C_unshrunken.rds")
+Aa_Fa_C_unshrunken <- readRDS("R_outputs/Aa_Fa_C_unshrunken.rds")
+
+Fa_C <- readRDS("R_outputs/Fa_C.rds")
+Aa_C <- readRDS("R_outputs/Aa_C.rds")
+Aa_Fa_C <- readRDS("R_outputs/Aa_Fa_C.rds")
+
+```
+
+
+```{r Volcano plots unshrunken, fig.height=10, fig.width=12}
+theme_set(theme_pubr())
+
+pCutoff = 0.05
+FCcutoff = 1.0
+
+#Interesting genes
+chosen_genes <- c("YOR388C","YNR034W-A","YOL052C-A" , "YPL276W", "YLR258W","YMR169C","YPL275W")
+
+VolcanoPlot1 <- EnhancedVolcano(Fa_C_unshrunken,
+                                        lab = rownames(Fa_C_unshrunken),
+                                        selectLab = chosen_genes,
+                                        #selectLab = NA,
+                                        x = 'log2FoldChange',
+                                        y = 'padj',
+                                        title = "Furfural",
+                                        subtitle = bquote(italic(" ")),
+                                        legendPosition = 'top',
+                                        pCutoff = pCutoff,
+                                        FCcutoff = FCcutoff,
+                                        drawConnectors = TRUE,
+                                        widthConnectors = 1.0,
+                                        ylim = c(0,350),
+                                        xlim = c(-5,8)
+                                        )
+                                        
+
+VolcanoPlot2 <- EnhancedVolcano(Aa_C_unshrunken,
+                                        lab = rownames(Aa_C_unshrunken),
+                                        selectLab = chosen_genes,
+                                        #selectLab = NA,
+                                        x = 'log2FoldChange',
+                                        y = 'padj',
+                                        title = "Acetic acid",
+                                        subtitle = bquote(italic(" ")),
+                                        legendPosition = 'top',
+                                        pCutoff = pCutoff,
+                                        FCcutoff = FCcutoff,
+                                        drawConnectors = TRUE,
+                                        widthConnectors = 1.0,
+                                        ylim = c(0,350),
+                                        xlim = c(-5,8)
+                                        )
+
+VolcanoPlot3 <- EnhancedVolcano(Aa_Fa_C_unshrunken,
+                                        lab = rownames(Aa_Fa_C_unshrunken),
+                                        selectLab = chosen_genes,
+                                        #selectLab = NA,
+                                        x = 'log2FoldChange',
+                                        y = 'padj',
+                                        title = "Acitid acid and furfural",
+                                        subtitle = bquote(italic(" ")),
+                                        legendPosition = 'top',
+                                        pCutoff = pCutoff,
+                                        FCcutoff = FCcutoff,
+                                        drawConnectors = TRUE,
+                                        widthConnectors = 1.0,
+                                        ylim = c(0,350),
+                                        xlim = c(-5,8)
+                                        )
+
+
+VolcanoPlot1 + VolcanoPlot2 + VolcanoPlot3
+Combined <- VolcanoPlot1 + VolcanoPlot2 + VolcanoPlot3
+
+ggsave(
+  "Volcano_Combined.pdf",
+  plot = Combined,
+  path = "R_outputs/",
+  height = 7,
+  width = 12,
+  dpi = 1000
+)
+```
+
+```{r Volcano plots shrunk, fig.height=10, fig.width=12}
+theme_set(theme_pubr())
+
+pCutoff = 0.05
+FCcutoff = 1.0
+
+#Interesting genes
+chosen_genes <- c("YOR388C","YNR034W-A","YOL052C-A" , "YPL276W", "YLR258W","YMR169C","YPL275W")
+
+VolcanoPlot1 <- EnhancedVolcano(Fa_C,
+                                        lab = rownames(Fa_C),
+                                        selectLab = chosen_genes,
+                                        #selectLab = NA,
+                                        x = 'log2FoldChange',
+                                        y = 'padj',
+                                        title = "Furfural",
+                                        subtitle = bquote(italic(" ")),
+                                        legendPosition = 'top',
+                                        pCutoff = pCutoff,
+                                        FCcutoff = FCcutoff,
+                                        drawConnectors = TRUE,
+                                        widthConnectors = 1.0,
+                                        ylim = c(0,350),
+                                        xlim = c(-5,8)
+                                        )
+                                        
+
+VolcanoPlot2 <- EnhancedVolcano(Aa_C,
+                                        lab = rownames(Aa_C),
+                                        selectLab = chosen_genes,
+                                        #selectLab = NA,
+                                        x = 'log2FoldChange',
+                                        y = 'padj',
+                                        title = "Acetic acid",
+                                        subtitle = bquote(italic(" ")),
+                                        legendPosition = 'top',
+                                        pCutoff = pCutoff,
+                                        FCcutoff = FCcutoff,
+                                        drawConnectors = TRUE,
+                                        widthConnectors = 1.0,
+                                        ylim = c(0,350),
+                                        xlim = c(-5,8)
+                                        )
+
+VolcanoPlot3 <- EnhancedVolcano(Aa_Fa_C,
+                                        lab = rownames(Aa_Fa_C),
+                                        selectLab = chosen_genes,
+                                        #selectLab = NA,
+                                        x = 'log2FoldChange',
+                                        y = 'padj',
+                                        title = "Acitid acid and furfural",
+                                        subtitle = bquote(italic(" ")),
+                                        legendPosition = 'top',
+                                        pCutoff = pCutoff,
+                                        FCcutoff = FCcutoff,
+                                        drawConnectors = TRUE,
+                                        widthConnectors = 1.0,
+                                        ylim = c(0,350),
+                                        xlim = c(-5,8)
+                                        )
+
+
+VolcanoPlot1 + VolcanoPlot2 + VolcanoPlot3
+Combined <- VolcanoPlot1 + VolcanoPlot2 + VolcanoPlot3
+
+ggsave(
+  "Volcano_Combined_shrunkLFC.pdf",
+  plot = Combined,
+  path = "R_outputs/",
+  height = 7,
+  width = 12,
+  dpi = 1000
+)
+
+```
+CONCLUSION: The lfcShrink() function did not change what genes that we recognised before as important. So that is very nice! From now on, we should use the results with shrunken values.
+
+
+```{r plotCounts}
+par(mfrow=c(2,3))
+plotCounts(dds, gene="YOR388C", intgroup="condition")
+plotCounts(dds, gene="YPL276W", intgroup="condition")
+plotCounts(dds, gene="YPL275W", intgroup="condition")
+
+plotCounts(dds, gene="YMR169C", intgroup="condition")
+plotCounts(dds, gene="YMR320W", intgroup="condition")
+plotCounts(dds, gene="YPL277C", intgroup="condition")
+
+```
+
+
+
+## show the effect of the shrinked lfc for our data
+
+We can see that the LFC for the lowly expressed genes is corrected with the lcfShrink().
+However, it does not seem to affect any significant genes, as indicated in the volcano plot.
+```{r MAplot, fig.height=7, fig.width=7}
+par(mfrow=c(2,1))
+plotMA(Fa_C_unshrunken,
+       colNonSig = "black")
+plotMA(Fa_C,
+       colNonSig = "black")
+```
+
+
