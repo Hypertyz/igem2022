@@ -17,6 +17,8 @@ countData <- read_clean_countData()
 head(countData)
 head(metaData)
 #-----------Make-DESeq-Object---------------------------------------------------
+# CHANGE CHANGE CHANGE!!!!! STEAL JAKES CODE
+
 # Make sure you have right format to make the DESeq Object:
 nrow(metaData) # X
 ncol(countData) # X+1
