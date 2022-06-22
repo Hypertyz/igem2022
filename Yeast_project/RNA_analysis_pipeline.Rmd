@@ -119,6 +119,11 @@ EnhancedVolcano(res,
 ```
 
 ```{r annotation}
+res_df <- read_delim("./R_outputs/res_fur_DEGs.csv", 
+    delim = ";", escape_double = FALSE, trim_ws = TRUE)
+colnames(res_df)[1] <- "Gene_id"
+
+
 gene_info <- read.csv("./sample_info/gene_info.csv", header=FALSE, row.names=NULL, stringsAsFactors=TRUE)
 
 colnames(gene_info) <- c("Gene_id", "Gene_name", "Loci")
@@ -216,8 +221,13 @@ for (i in 1:length(res_df$Loci)){
 
 res_df <- cbind(res_df, strand)
 
-# prom_can <- res_df %>% filter(strand == "+" | strand == "-") %>% select(promo_seq)
-prom_can <- res_df %>% filter(strand == "+") %>% select(promo_seq)
+neg_strand_promo_comp <- res_df %>% filter(strand == "-") %>% mutate(promo_seq=replace(promo_seq, strand=="-", chartr("ATGC","TACG",promo_seq)))
+
+pos_strand_promo <- res_df %>% filter(strand == "+")
+
+promo_metadata <- bind_rows(neg_strand_promo_comp, pos_strand_promo)
+
+prom_can <- promo_metadata %>% select(promo_seq)
 
 ```
 
@@ -225,7 +235,7 @@ prom_can <- res_df %>% filter(strand == "+") %>% select(promo_seq)
 write.table(prom_can, "./R_outputs/promoters.csv", append = FALSE, sep = "\n",
             row.names = FALSE, col.names = FALSE, quote = FALSE)
 
-write.table(res_df, "./R_outputs/DEseq_result.csv", append = FALSE, sep = ",",
-            row.names = FALSE, col.names = FALSE, quote = FALSE)
+write.table(res_df, "./R_outputs/DEseq_result.tsv", append = FALSE, sep = "\t",
+            row.names = FALSE, col.names = TRUE, quote = FALSE)
 
 ```
