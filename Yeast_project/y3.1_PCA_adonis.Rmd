@@ -7,7 +7,7 @@ output: html_document
 Herein, we explore the groupings on the samples based on their gene expression profile. 
 The PCA plot shows that the gene expression is very different among the different conditions. 
 The ADONIS test is a statistical test that measures the significance of this
-grouping observed in the PCA plot, which is very significant.
+grouping observed in the PCA plot, which is very significant. 
 
 
 ```{r}
