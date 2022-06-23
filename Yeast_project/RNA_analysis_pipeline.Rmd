@@ -225,7 +225,7 @@ neg_strand_promo_comp <- res_df %>% filter(strand == "-") %>% mutate(promo_seq=r
 
 pos_strand_promo <- res_df %>% filter(strand == "+")
 
-promo_metadata <- bind_rows(neg_strand_promo_comp, pos_strand_promo)
+promo_metadata <- bind_rows(neg_strand_promo_comp, pos_strand_promo) %>% arrange(desc(log2FoldChange))
 
 prom_can <- promo_metadata %>% select(promo_seq)
 
