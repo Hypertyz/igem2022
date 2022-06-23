@@ -25,6 +25,9 @@ Fa_C <- readRDS("R_outputs/Fa_C.rds")
 Aa_C <- readRDS("R_outputs/Aa_C.rds")
 Aa_Fa_C <- readRDS("R_outputs/Aa_Fa_C.rds")
 
+Fa_C
+sum(is.na(Fa_C$padj))  #171
+
 ```
 
 
@@ -145,13 +148,15 @@ venn.diagram(DEGs_down, filename = "R_outputs/VennD_DEGs_down.png",
 Maybe make this into a function, because this is not super practical
 
 ```{r make csv}
-#Extract the names of the genes that are upregulated and interesting: 
-l_Fa_C = row.names(Fa_C[which(Fa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ])
-l_Aa_C = row.names(Aa_C[which(Aa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ])
-l_Aa_Fa_C = row.names(Aa_Fa_C[which(Aa_Fa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ])
+pval_threshold <- 0.05
+FC_threshold <- 1
 
+l_Fa_C <- row.names(Fa_C[which(Fa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ])
+l_Aa_C <- row.names(Aa_C[which(Aa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ])
+l_Aa_Fa_C <- row.names(Aa_Fa_C[which(Aa_Fa_C$padj <= pval_threshold & Fa_C$log2FoldChange>FC_threshold ), ])
+length(l_Fa_C) #205
 
-all_DEGs <- unique(c(l_Fa_C, l_Aa_C, l_Aa_Fa_C))
+all_DEGs <- unique(c(l_Fa_C, l_Aa_C, l_Aa_Fa_C)) #5577
 length(all_DEGs) #466
 
 # Find the genes that are UNIQUE to furfural (not shared with acedic acid)
