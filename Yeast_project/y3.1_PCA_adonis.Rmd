@@ -35,13 +35,10 @@ countData <- read_clean_countData() # countdata about samples
 
 vsdata <- vst(dds, blind=FALSE)
 
-# nice colour palette for plotting (maybe delete here, because I made it in the function)
-cbPalette <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
 PCA_top500 <- plotPCA(vsdata, intgroup="condition")
 
 source("y00_functions.R") #to get theme_Publication()
-
 PCA_top500_save <- PCA_top500 + theme_Publication() + 
   theme(strip.text.x = element_blank(), 
         strip.text.y = element_blank(), 
@@ -49,10 +46,16 @@ PCA_top500_save <- PCA_top500 + theme_Publication() +
         axis.text.x = element_text(size = 16, hjust=1), axis.text.y = element_text(size = 16, hjust = 1),
         legend.key.size = unit(0.8, "cm"), 
         legend.text=element_text(size=15),
-        legend.position = c(0.87, 0.87),legend.background = element_rect(fill = "white", color = "black")) + 
-  geom_text(mapping = aes(label = name), size = 4.5, vjust=1.5) + 
-  scale_colour_Publication()
-PCA_top500_save
+        legend.position = c(0.80, 0.85),legend.background = element_rect(fill = "white", color = "black")) + 
+  scale_colour_Publication(name="Experimental\nCondition",
+                           breaks=c("C", "Fa", "Aa", "Aa_Fa"),
+                           labels=c("Control", "Furfural", "Acidic acid", "Acidic acid + furfural"))+     
+  geom_point(size = 4) 
+
+#geom_text(mapping = aes(label = name), size = 4.5, vjust=1.5)
+
+PCA_top500_save 
+
 
 ggsave(
   "PCA_top500_save.pdf",
@@ -66,10 +69,9 @@ ggsave(
 ```
 
 
-#ADONIS
+#ADONIS test
 
 ```{r}
-
 # Make an ANOVA test/ ADONIS test
 # Tutorial: https://www.rdocumentation.org/packages/vegan/versions/2.4-2/topics/adonis
 
@@ -79,9 +81,9 @@ colnames(countData_adonis) <- countData[, 1]
 
 ncol(countData_adonis) #11126
 set.seed(123456789)
-adonis_sample_type <- adonis(countData_adonis ~ condition, data = metaData, permutations = 10000) # p = 2e-04 ***
+adonis_condition <- adonis2(countData_adonis ~ condition, data = metaData, permutations = 10000) 
+# p =9.999e-05 ***
 # The p value is HIGHLY significant.
-
 ```
 
 
