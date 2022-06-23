@@ -11,6 +11,7 @@ library(DESeq2)
 library(tximport)
 library(EnhancedVolcano)
 library(ggpubr)
+library(readr)
 
 file_names = c("SRR9665408",
           "SRR9665409",
@@ -239,3 +240,14 @@ write.table(res_df, "./R_outputs/DEseq_result.tsv", append = FALSE, sep = "\t",
             row.names = FALSE, col.names = TRUE, quote = FALSE)
 
 ```
+
+```{r clusters}
+clusters <- read_csv("notebooks/clusters.csv", 
+    col_types = cols(cluster = col_integer()))
+
+promo_metadata <- bind_cols(promo_metadata, clusters)
+
+View(promo_metadata %>% filter(cluster == 1))
+
+```
+
