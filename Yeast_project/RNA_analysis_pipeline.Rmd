@@ -12,6 +12,7 @@ library(tximport)
 library(EnhancedVolcano)
 library(ggpubr)
 library(readr)
+library(seqinr)
 
 file_names = c("SRR9665408",
           "SRR9665409",
@@ -66,11 +67,11 @@ ddsTxi <- DESeqDataSetFromTximport(txi.kallisto,
 
 ```
 
-### DESeq2
+## DESeq2
 
 ```{r DESeq2}
 dds <- DESeq(ddsTxi)
-res <- results(dds, contrast=c("condition","Fa","C"))
+res <- results(dds, contrast=c("condition","Fa","Aa_Fa"))
 
 res <- res[order(res$padj),]
 summary(res)
@@ -120,8 +121,8 @@ EnhancedVolcano(res,
 ```
 
 ```{r annotation}
-res_df <- read_delim("./R_outputs/res_fur_DEGs.csv", 
-    delim = ";", escape_double = FALSE, trim_ws = TRUE)
+res_df <- read_delim("./R_outputs/res_DEGs_up_fur.csv", 
+    delim = ",", escape_double = FALSE, trim_ws = TRUE)
 colnames(res_df)[1] <- "Gene_id"
 
 
@@ -132,6 +133,8 @@ colnames(gene_info) <- c("Gene_id", "Gene_name", "Loci")
 res_df <- res_df %>% left_join(gene_info, by = "Gene_id")
 
 ```
+
+## Extract promoters
 
 ```{r promoters}
 library("Biostrings")
@@ -179,18 +182,18 @@ for (i in 1:length(res_df$Loci)){
     promo_seq_MM <- c()
     for (j in 1:length(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]])){
       if (as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1]) < as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][2])) {
-        promo_seq_MM <- append(promo_seq_MM, paste(j, "-", as.character(genome[[annot_dict[strsplit(as.character(res_df$Loci[i]), " ")[[1]][2]]]][as.numeric(as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1])-999):as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1])]), sep = ""))
+        promo_seq_MM <- append(promo_seq_MM, paste(j, "-", as.character(genome[[annot_dict[strsplit(as.character(res_df$Loci[i]), " ")[[1]][2]]]][as.numeric(as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1])-1000):as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1])]), sep = ""))
       } else {
-        promo_seq_MM <- append(promo_seq_MM, paste(j, "-", as.character(genome[[annot_dict[strsplit(as.character(res_df$Loci[i]), " ")[[1]][2]]]][as.numeric(as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1])+999):as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1])]), sep = ""))
+        promo_seq_MM <- append(promo_seq_MM, paste(j, "-", as.character(genome[[annot_dict[strsplit(as.character(res_df$Loci[i]), " ")[[1]][2]]]][as.numeric(as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1])+1000):as.numeric(strsplit(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], ";")[[1]][j], "-")[[1]][1])]), sep = ""))
       }
       }
     promo_seq_MM <- paste(promo_seq_MM, collapse = ";")
     promo_seq <- append(promo_seq, promo_seq_MM)
   } else {
     if (as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1]) < as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][2])) {
-      promo_seq <- append(promo_seq, as.character(genome[[annot_dict[strsplit(as.character(res_df$Loci[i]), " ")[[1]][2]]]][as.numeric(as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1])-999):as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1])]))
+      promo_seq <- append(promo_seq, as.character(genome[[annot_dict[strsplit(as.character(res_df$Loci[i]), " ")[[1]][2]]]][as.numeric(as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1])-1000):as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1])]))
     } else {
-      promo_seq <- append(promo_seq, as.character(genome[[annot_dict[strsplit(as.character(res_df$Loci[i]), " ")[[1]][2]]]][as.numeric(as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1])+999):as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1])]))
+      promo_seq <- append(promo_seq, as.character(genome[[annot_dict[strsplit(as.character(res_df$Loci[i]), " ")[[1]][2]]]][as.numeric(as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1])+1000):as.numeric(strsplit(strsplit(as.character(res_df$Loci[i]), " ")[[1]][4], "-")[[1]][1])]))
     }
   }
 }
@@ -247,7 +250,161 @@ clusters <- read_csv("notebooks/clusters.csv",
 
 promo_metadata <- bind_cols(promo_metadata, clusters)
 
-View(promo_metadata %>% filter(cluster == 1))
+clus1_promo_seq <- promo_metadata %>% filter(cluster == 1) %>% select(promo_seq)
+clus1_promo_name <- promo_metadata %>% filter(cluster == 1) %>% select(Gene_name)
+
+clus2_promo_seq <- promo_metadata %>% filter(cluster == 2) %>% select(promo_seq)
+clus2_promo_name <- promo_metadata %>% filter(cluster == 2) %>% select(Gene_name)
+
+clus3_promo_seq <- promo_metadata %>% filter(cluster == 3) %>% select(promo_seq)
+clus3_promo_name <- promo_metadata %>% filter(cluster == 3) %>% select(Gene_name)
+
+clus0_promo_seq <- promo_metadata %>% filter(cluster == 0) %>% select(promo_seq)
+clus0_promo_name <- promo_metadata %>% filter(cluster == 0) %>% select(Gene_name)
+
+write.fasta(as.list(clus1_promo_seq$promo_seq), as.character(clus1_promo_name$Gene_name), "./R_outputs/clus1_promo.fasta")
+write.fasta(as.list(clus2_promo_seq$promo_seq), as.character(clus2_promo_name$Gene_name), "./R_outputs/clus2_promo.fasta")
+write.fasta(as.list(clus3_promo_seq$promo_seq), as.character(clus3_promo_name$Gene_name), "./R_outputs/clus3_promo.fasta")
+write.fasta(as.list(clus0_promo_seq$promo_seq), as.character(clus0_promo_name$Gene_name), "./R_outputs/clus0_promo.fasta")
+
+write.fasta(as.list(promo_metadata$promo_seq[1:2]), as.character(promo_metadata$Gene_name[1:2]), "./R_outputs/test_promo.fasta")
+```
+
+
+## Find DNA-binding sites
+
+```{r extract DNA-binding sites based on kmer position clustering}
+# Consensus
+consensus <- read.fasta("./R_outputs/Jalview_output/test/consensus.fasta", as.string = TRUE)
+
+consensus <- as.character(consensus$`Consensus/1-1489`[1])
+
+# Occupancy
+occupancy <- read_csv("./R_outputs/Jalview_output/test/occupancy.csv", 
+    col_names = FALSE)
+
+sequence = c()
+
+for (i in 1:nchar(consensus)){
+  sequence <- append(sequence, substr(consensus, i, i))
+}
+
+sequence <- as.data.frame(sequence)
+
+occupancy <- t(occupancy)
+end <- length(occupancy)-1
+occupancy <- as.data.frame(occupancy[2:end])
+
+# Alignments
+alignments <- read.fasta("./R_outputs/test_promo_aligned.fasta", as.string = TRUE)
+
+test_seqs <- as.data.frame(c(1:nchar(consensus)))
+
+for (a in alignments) {
+  test_seq <- c()
+  s <- a[1]
+  for (i in 1:nchar(s)){
+    test_seq <- append(test_seq, substr(s, i, i))
+  }
+  test_seq <- as.data.frame(test_seq)
+  test_seqs <- cbind(test_seqs, test_seq)
+}
+
+test_seqs <- test_seqs[-1]
+colnames(test_seqs) <- as.character(promo_metadata$Gene_name[1:3])
+
+binding_sites <- bind_cols(sequence, test_seqs, occupancy)
+colnames(binding_sites)[ncol(binding_sites)] <- "occupancy"
+
+# Binding sites
+binding_sites <- binding_sites %>% mutate(sequence=replace(sequence, occupancy < 3, "+"))
+
+idx <- 1
+binding_site_seqs <- list()
+binding_site <- c()
+
+for (n in binding_sites$sequence){
+  if (n == "+"){
+    if(length(binding_site) == 0) {
+      idx <- idx + 1
+    } else {
+       binding_site_seqs <- append(binding_site_seqs, list(binding_site))
+       binding_site <- c()
+       idx <- idx + 1
+      }
+  } else {
+    binding_site <- append(binding_site, idx)
+    idx <- idx + 1
+  }
+  
+}
+
+binding_site_seqs_filtered <- list()
+
+for (i in binding_site_seqs){
+  if (length(i) >= 6){
+    binding_site_seqs_filtered <- append(binding_site_seqs_filtered, list(i))
+    }
+}
+
+putative_TFBS <- list()
+seq_n <- 1
+
+for (i in binding_site_seqs_filtered){
+  start <- i[1]
+  end <- i[length(i)]
+  for (j in test_seqs[start:end,]){
+    putative_TFBS <- append(putative_TFBS, list(paste(j, collapse = '')))
+  }
+  write.fasta(putative_TFBS, colnames(test_seqs),
+              paste("./R_outputs/Putative_TFBS/test/putative_TFBS_", seq_n, ".fasta", sep = ""))
+  putative_TFBS <- list()
+  seq_n <- seq_n + 1 
+}
+
+# PFM - Trine look!
+putative_TFBS1 <- read.fasta("./R_outputs/Putative_TFBS/test/putative_TFBS_4.fasta", as.string = T)
+pfm <- c()
+
+for (s in putative_TFBS1) {
+  pfm <- append(pfm, s)
+}
+
+write.table(consensusMatrix(pfm), file = "./R_outputs/Putative_TFBS/test/pfm.txt", col.names = F, row.names = F)
 
 ```
 
+```{r extract DNA-binding sites using JASPAR DB}
+points <- promo_metadata$log2FoldChange
+
+clusters <- kmeans(points, centers = 4)
+
+clusters$cluster
+
+library(MotifDb)
+library(seqLogo)
+library(motifStack)
+library(Biostrings)
+library(GenomicFeatures)
+library(org.Sc.sgd.db)
+library(BSgenome.Scerevisiae.UCSC.sacCer3)
+library(TxDb.Scerevisiae.UCSC.sacCer3.sgdGene)
+
+matrices.yeast <- query(MotifDb, c("Scerevisiae", "JASPAR_CORE"))
+
+promoter <- promo_metadata$promo_seq[3]
+
+count <- 1
+
+for (i in 1:length(matrices.yeast)){
+  matrices.yeast.single <- matrices.yeast[[i]]
+  matrices.yeast.single <- round(100 * matrices.yeast.single)
+  match <- matchPWM(matrices.yeast.single, unlist(promoter)[[1]], "100%")
+  if (length(match@ranges@width) != 0){
+    print(names(matrices.yeast[i]))
+    count <- count + 1
+  }
+}
+
+print(count)
+```
