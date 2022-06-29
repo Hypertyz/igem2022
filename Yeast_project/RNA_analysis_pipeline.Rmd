@@ -299,6 +299,7 @@ for (i in stringr::str_split(consensus_bs, "-")){
 
 plotMotifLogoStack(DNAmotifAlignment(seqlogo_plot))
 
+
 ```
 
 ```{r extract DNA-binding sites based on MAFFT alignment}
@@ -394,7 +395,7 @@ for (i in binding_site_seqs_filtered){
 }
 
 # PFM - Trine look!
-putative_TFBS1 <- read.fasta("./R_outputs/Putative_TFBS/putative_TFBS_5.fasta", as.string = T)
+putative_TFBS1 <- read.fasta("./R_outputs/Putative_TFBS/putative_TFBS_1.fasta", as.string = T)
 pfm <- c()
 
 for (s in putative_TFBS1) {
@@ -472,8 +473,11 @@ for (k in binding_site_seqs_filtered){
     if (length(match@ranges@width) != 0){
       print(paste(binding_sites$sequence[start:end], collapse = ''))
       print(names(matrices.yeast[i]))
+      consensus_bs <- append(names(matrices.yeast[i]), consensus_bs)
     }
   }
 }
+
+write.table(as.data.frame(consensus_bs) %>% count(consensus_bs), file = "./R_outputs/PuTF.tsv", sep = "\t", quote = F, row.names = F)
 
 ```
