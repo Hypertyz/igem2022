@@ -41,7 +41,7 @@ file_names = c("SRR9665408",
 abundance <- read.delim(paste("./sample_reads/", file_names[1], "/abundance.tsv",
                               sep = ""))
 
-abundance <- abundance %>% select(target_id, tpm) %>% rename_with(recode, tpm = file_names[1])
+abundance <- abundance %>% dplyr::select(target_id, tpm) %>% rename_with(recode, tpm = file_names[1])
 
 
 
@@ -49,7 +49,7 @@ for (i in 2:length(file_names)) {
   tmp <- read.delim(paste("./sample_reads/", file_names[i], "/abundance.tsv",
                           sep = ""))
   
-  abundance <- tmp %>% select(target_id, tpm) %>%  rename_with(recode, tpm = file_names[i]) %>% left_join(abundance, by ="target_id")
+  abundance <- tmp %>% dplyr::select(target_id, tpm) %>%  rename_with(recode, tpm = file_names[i]) %>% left_join(abundance, by ="target_id")
   
 }
 
@@ -76,7 +76,7 @@ ddsTxi <- DESeqDataSetFromTximport(txi.kallisto,
 
 ```{r DESeq2}
 dds <- DESeq(ddsTxi)
-res <- results(dds, contrast=c("condition","Fa","Aa_Fa"))
+res <- results(dds, contrast=c("condition","Fa","C"))
 
 res <- res[order(res$padj),]
 summary(res)
@@ -236,7 +236,7 @@ pos_strand_promo <- res_df %>% dplyr::filter(strand == "+")
 
 promo_metadata <- bind_rows(neg_strand_promo_comp, pos_strand_promo) %>% arrange(desc(log2FoldChange))
 
-prom_can <- promo_metadata %>% select(promo_seq)
+prom_can <- promo_metadata %>% dplyr::select(promo_seq)
 
 ```
 
@@ -256,7 +256,7 @@ points <- promo_metadata$log2FoldChange
 
 clusters <- kmeans(points, centers = 4)
 
-promoters <- promo_metadata %>% bind_cols(clusters$cluster) %>% rename(cluster = ...12)
+promoters <- promo_metadata %>% bind_cols(clusters$cluster) %>% dplyr::rename(cluster = ...12)
 
 get_DNABS <- function(promoter){
   
@@ -267,7 +267,7 @@ get_DNABS <- function(promoter){
   for (i in 1:length(matrices.yeast)){
     matrices.yeast.single <- matrices.yeast[[i]]
     matrices.yeast.single <- round(100 * matrices.yeast.single)
-    match <- matchPWM(matrices.yeast.single, unlist(promoter)[[1]], "100%")
+    match <- matchPWM(matrices.yeast.single, unlist(promoter)[[1]], "95%")
     if (length(match@ranges@width) != 0){
       BS <- append(names(matrices.yeast[i]), BS)
       }
@@ -278,8 +278,8 @@ get_DNABS <- function(promoter){
 BSs <- list()
 
 for (i in promoters$cluster[1]){
-  promoters_cluster <- as.list(promoters %>% dplyr::filter(cluster == i) %>% select(promo_seq))
-  promoters_cluster_name <- promoters %>% dplyr::filter(cluster == i) %>% select(Gene_name)
+  promoters_cluster <- as.list(promoters %>% dplyr::filter(cluster == i) %>% dplyr::select(promo_seq))
+  promoters_cluster_name <- promoters %>% dplyr::filter(cluster == i) %>% dplyr::select(Gene_name)
   BS <- lapply(promoters_cluster$promo_seq, get_DNABS)
   BSs <- append(list(BS), BSs)
   }
@@ -469,7 +469,7 @@ for (k in binding_site_seqs_filtered){
   for (i in 1:length(matrices.yeast)){
     matrices.yeast.single <- matrices.yeast[[i]]
     matrices.yeast.single <- round(100 * matrices.yeast.single)
-    match <- matchPWM(matrices.yeast.single, paste(binding_sites$sequence[start:end], collapse = ''), "100%")
+    match <- matchPWM(matrices.yeast.single, paste(binding_sites$sequence[start:end], collapse = ''), "95%")
     if (length(match@ranges@width) != 0){
       print(paste(binding_sites$sequence[start:end], collapse = ''))
       print(names(matrices.yeast[i]))
@@ -478,6 +478,6 @@ for (k in binding_site_seqs_filtered){
   }
 }
 
-write.table(as.data.frame(consensus_bs) %>% count(consensus_bs), file = "./R_outputs/PuTF.tsv", sep = "\t", quote = F, row.names = F)
+write.table(as.data.frame(consensus_bs) %>% dplyr::count(consensus_bs), file = "./R_outputs/PuTF.tsv", sep = "\t", quote = F, row.names = F)
 
 ```
