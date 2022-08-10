@@ -1,0 +1,93 @@
+---
+title: "PCR and adonis"
+author: "Trine Bertram Rasmussen"
+date: '2022-06-23'
+output: html_document
+---
+Herein, we explore the groupings on the samples based on their gene expression profile. 
+The PCA plot shows that the gene expression is very different among the different conditions. 
+The ADONIS test is a statistical test that measures the significance of this
+grouping observed in the PCA plot, which is very significant. 
+
+
+```{r}
+library("ggplot2") #for plotting
+library("DESeq2") # for DESeq analysis
+library("vegan") #to make adonis analysis
+
+source("d00_functions.R")
+# made in 03_DESeqObject
+dds <- readRDS("R_outputs/dds.rds") #DESeq object
+res <- readRDS("R_outputs/res.rds") #result table from DESeq object
+
+metaData <- read_clean_metaData()[,1:3] # metadata about samples
+#countData <- read_clean_countData() # countdata about samples
+```
+
+
+#Explore raw data with PCA plots and test if the groupings are significant with adonis
+
+```{r, fig.height=7, fig.width=12}
+# First we need to transform the raw count data
+# vst function will perform variance stabilizing transformation
+
+vsdata <- vst(dds, blind=FALSE)
+
+
+PCA_top500 <- plotPCA(vsdata, intgroup="condition")
+
+source("d00_functions.R") #to get theme_Publication()
+PCA_top500_save <- PCA_top500 + theme_Publication() +   geom_point(size = 4) +
+  theme(strip.text.x = element_blank(), 
+        strip.text.y = element_blank(), 
+        axis.title.x = element_text(size = 16), axis.title.y = element_text(size = 16),
+        axis.text.x = element_text(size = 16, hjust=1), axis.text.y = element_text(size = 16, hjust = 1),
+        legend.key.size = unit(0.8, "cm"), 
+        legend.text=element_text(size=15),
+        legend.position = c(0.9,0.15),legend.background = element_rect(fill = "white", color = "black"))+
+  scale_colour_Publication(name="Experimental\nCondition",
+                           breaks=c("GHB_NH4", "Suc_GABA", "Suc_NH4"),
+                           labels=c("GHB_NH4", "Suc_GABA", "Suc_NH4")
+                           ) #+geom_text(mapping = aes(label = name), size = 4.5, vjust=1.5)
+
+
+#+geom_text(mapping = aes(label = name), size = 4.5, vjust=1.5)
+
+PCA_top500_save  
+
+# Investigating what that little ourlier is
+PCA_top500_save  + geom_text(mapping = aes(label = name), size = 4.5, vjust=1.5)
+# hmm maybe leave out the weird extra control replicates
+
+#ggsave(
+#  "PCA_top500_save.pdf",
+#  plot = PCA_top500_save,
+#  path = "R_outputs/",
+#  height = 7,
+#  width = 12,
+#  dpi = 1000
+#)
+
+```
+
+
+#ADONIS test NOT adapted to their data
+```{r}
+# Make an ANOVA test/ ADONIS test
+# Tutorial: https://www.rdocumentation.org/packages/vegan/versions/2.4-2/topics/adonis
+
+# format countData for adonis
+countData_adonis <-t(countData)
+head(as.data.frame(countData_adonis))
+#colnames(countData_adonis) <- countData[, 1]
+
+ncol(countData_adonis) #5321
+set.seed(123456789)
+
+#I think I made something wrong here.
+adonis_condition <- adonis2(countData_adonis ~ condition, data = metaData, permutations = 10000) 
+
+
+```
+
+

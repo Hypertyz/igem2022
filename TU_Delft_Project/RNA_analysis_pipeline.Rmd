@@ -1,0 +1,446 @@
+---
+title: "RNA_analysis"
+author: "Hypertyz"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(DESeq2)
+library(tximport)
+library(EnhancedVolcano)
+library(ggpubr)
+library(readr)
+library(seqinr)
+library(seqLogo)
+library(motifStack)
+library(Biostrings)
+library(GenomicFeatures)
+
+file_names = c(
+"SRR8121136",
+"SRR8121137",
+"SRR8121138",
+"SRR8121139",
+"SRR8121140",
+"SRR8121141",
+"SRR8121142",
+"SRR8121143",
+"SRR8121144",
+"SRR8121145",
+"SRR8121146",
+"SRR8121147"
+)
+
+
+```
+
+## RNA-seq analysis to detect promoter sequences
+
+```{r load data}
+abundance <- read.delim(paste("./sample_reads/", file_names[1], "/abundance.tsv",
+                              sep = ""))
+
+abundance <- abundance %>% dplyr::select(target_id, tpm) %>% rename_with(recode, tpm = file_names[1])
+
+
+
+for (i in 2:length(file_names)) {
+  tmp <- read.delim(paste("./sample_reads/", file_names[i], "/abundance.tsv",
+                          sep = ""))
+  
+  abundance <- tmp %>% dplyr::select(target_id, tpm) %>%  rename_with(recode, tpm = file_names[i]) %>% left_join(abundance, by ="target_id")
+  
+}
+
+```
+
+```{r prepare matrix}
+source("d00_functions.R")
+metaData <- read_clean_metaData()
+
+files <- file.path("./sample_reads", file_names, "abundance.h5")
+
+names(files) <- paste0(metaData$Name)
+
+txi.kallisto <- tximport(files, type = "kallisto", txOut = TRUE, countsFromAbundance = "lengthScaledTPM")
+
+ddsTxi <- DESeqDataSetFromTximport(txi.kallisto,
+                                   colData = metaData,
+                                   design = ~ condition)
+
+```
+
+## DESeq2
+
+```{r DESeq2}
+dds <- DESeq(ddsTxi)
+GHB_NH4 <- results(dds, contrast=c("condition","GHB_NH4","Suc_NH4"))
+Suc_GABA <- results(dds, contrast=c("condition","Suc_GABA","Suc_NH4_1"))
+
+GHB_NH4 <- GHB_NH4[order(GHB_NH4$padj),]
+summary(GHB_NH4)
+head(GHB_NH4)
+
+Suc_GABA <- Suc_GABA[order(Suc_GABA$padj),]
+summary(Suc_GABA)
+head(Suc_GABA)
+
+```
+
+```{r Volcano plot}
+
+theme_set(theme_pubr())
+
+pCutoff = 0.05
+FCcutoff = 2.0
+
+#GHB_NH4
+
+GHB_NH4_df <- as.data.frame(GHB_NH4@listData)
+g_names <- as.data.frame(GHB_NH4@rownames)
+
+GHB_NH4_df <- cbind(g_names, GHB_NH4_df)
+colnames(GHB_NH4_df)[1] <- "Protein_id"
+
+GHB_NH4_df_sig <- GHB_NH4_df %>% dplyr::filter(padj <0.05, log2FoldChange > 2)
+chosen_genes <- c(GHB_NH4_df_sig$Protein_id)
+
+EnhancedVolcano(GHB_NH4,
+                lab = rownames(GHB_NH4),
+                selectLab = chosen_genes[1:3],
+                x = 'log2FoldChange',
+                y = 'padj',
+                title = "GHB_NH4",
+                subtitle = bquote(italic(" ")),
+                legendPosition = 'top',
+                pCutoff = pCutoff,
+                FCcutoff = FCcutoff,
+                drawConnectors = TRUE,
+                widthConnectors = 1.0,
+                ylim = c(0,350),
+                xlim = c(-6,6)
+                )
+
+#Suc_GABA
+
+Suc_GABA_df <- as.data.frame(Suc_GABA@listData)
+g_names <- as.data.frame(Suc_GABA@rownames)
+
+Suc_GABA_df <- cbind(g_names, Suc_GABA_df)
+colnames(Suc_GABA_df)[1] <- "Protein_id"
+
+Suc_GABA_df_sig <- Suc_GABA_df %>% dplyr::filter(padj <0.05, log2FoldChange > 2)
+chosen_genes <- c(Suc_GABA_df_sig$Protein_id)
+
+EnhancedVolcano(Suc_GABA,
+                lab = rownames(Suc_GABA),
+                selectLab = chosen_genes[1:3],
+                x = 'log2FoldChange',
+                y = 'padj',
+                title = "Suc_GABA",
+                subtitle = bquote(italic(" ")),
+                legendPosition = 'top',
+                pCutoff = pCutoff,
+                FCcutoff = FCcutoff,
+                drawConnectors = TRUE,
+                widthConnectors = 1.0,
+                ylim = c(0,400),
+                xlim = c(-6,6)
+                )
+
+```
+## Enrichment analysis
+```{r enrichment}
+library(clusterProfiler)
+
+reads_meta <- read.csv(file = "./sample_info/reads_metadata.csv")
+GHB_NH4_df_sig <- GHB_NH4_df_sig %>% left_join(reads_meta)
+Suc_GABA_df_sig <- Suc_GABA_df_sig %>% left_join(reads_meta)
+# KEGG pathway enrichment for top 1000 DEGs
+pathEnrich <- enrichKEGG(gene = GHB_NH4_df_sig$Gene_id,
+                         organism = "atu", # Yeast
+                         keyType = "kegg", # KEGG database
+                         pvalueCutoff = 0.05,
+                         pAdjustMethod = "BH",
+                         universe = GHB_NH4_df$Gene_id)
+
+# Store the significantly enriched pathways (P < 0.05)
+signif_pathEnrich <- pathEnrich@result[pathEnrich@result$p.adjust < 0.05, ]
+
+##########
+
+# Show the 10 most significant pathways as a dot plot
+dotplot(pathEnrich, x = "Count", showCategory = 10, orderBy = "Count")
+
+##########
+
+# 3.2 Functional Class Scoring: Gene Set Enrichment Analysis
+
+# Create a list of logFCs with their corresponding genes as names
+logFC <- GHB_NH4_df_sig$log2FoldChange
+names(logFC) <- GHB_NH4_df_sig$Gene_id
+
+# Order the list in decreasing order
+logFC <- sort(logFC, decreasing = TRUE)
+
+# Perform GSEA using KEGG pathways
+gseaKEGG <- gseKEGG(geneList = logFC,
+                    organism = "atu",
+                    nPerm = 1000, # Number of permutations
+                    pvalueCutoff = 0.05)
+
+# Extract the GSEA results
+gseaKEGG_results <- gseaKEGG@result
+
+# Plot the GSEA plot for a single enriched pathway
+gseaplot(gseaKEGG, geneSetID = gseaKEGG_results$ID[1])
+
+##########
+
+# 3.3 Pathway Topology: pathview
+
+# Install and load the required package
+library(pathview)
+
+# Run pathview for a particular pathway ID
+# pathview(gene.data = logFC,
+#          pathway.id = "sce01200",
+#          low = "red", mid = "grey", high = "green",
+#          species = "sce",
+#          limit = c(-10, 10),
+#          gene.idtype = "KEGG",
+#          kegg.dir = "./R_outputs/KEGG/")
+```
+
+## Extract promoters
+```{r annotation}
+library(stringr)
+
+genome <- readDNAStringSet("./sample_info/GCA_000092025.1_ASM9202v1_genomic.fna")
+
+promo_seq <- c()
+strand <- c()
+
+for (i in 1:nrow(GHB_NH4_df_sig)) {
+  locus <- GHB_NH4_df_sig$Chromosome[i]
+  location <- GHB_NH4_df_sig$Location[i]
+  if (grepl( "complement", location, fixed = TRUE)) {
+    strand <- append(strand, "-")
+    location <- gsub(')', '', location)
+    start_pos <-  str_split(location, pattern="-", simplify = T)[2]
+    end_pos <- as.integer(start_pos) + 500
+  } else {
+    strand <- append(strand, "+")
+    start_pos <-  str_split(location, pattern="-", simplify = T)[1]
+    end_pos <- as.integer(start_pos) - 500
+  }
+  if (locus == "AE007869.2") {
+    promo_seq_MM <- genome[1]$`AE007869.2 Agrobacterium tumefaciens str. C58 circular chromosome, complete sequence`[start_pos:end_pos]
+  }
+  if (locus == "AE007870.2") {
+    promo_seq_MM <- genome[2]$`AE007870.2 Agrobacterium tumefaciens str. C58 linear chromosome, complete sequence`[start_pos:end_pos]
+  }
+  if (locus == "AE007872.2") {
+    promo_seq_MM <- genome[3]$`AE007872.2 Agrobacterium tumefaciens str. C58 plasmid At, complete sequence`[start_pos:end_pos]
+  }
+  if (locus == "AE007871.2") {
+    promo_seq_MM <- genome[4]$`AE007871.2 Agrobacterium tumefaciens str. C58 plasmid Ti, complete sequence`[start_pos:end_pos]
+  }
+  promo_seq <- append(promo_seq, as.character(promo_seq_MM))
+}
+
+GHB_NH4_df_sig <- cbind(GHB_NH4_df_sig, promo_seq, strand)
+
+neg_strand_promo_comp <- GHB_NH4_df_sig %>% dplyr::filter(strand == "-") %>% mutate(promo_seq=replace(promo_seq, strand=="-", chartr("ATGC","TACG",promo_seq)))
+
+pos_strand_promo <- GHB_NH4_df_sig %>% dplyr::filter(strand == "+")
+
+promo_metadata <- bind_rows(neg_strand_promo_comp, pos_strand_promo) %>% arrange(desc(log2FoldChange))
+
+prom_can <- promo_metadata %>% dplyr::select(promo_seq)
+```
+
+```{r save}
+write.table(prom_can, "./R_outputs/promoters.csv", append = FALSE, sep = "\n",
+            row.names = FALSE, col.names = FALSE, quote = FALSE)
+```
+
+## Find DNA-binding sites
+
+```{r extract DNA-binding sites based on MAFFT alignment}
+points <- promo_metadata$log2FoldChange
+
+clusters <- kmeans(points, centers = 4)
+
+promoters <- promo_metadata %>% bind_cols(clusters$cluster) %>% dplyr::rename(cluster = ...15)
+
+for (i in promoters$cluster[1]){
+  promoters_cluster <- as.list(promoters %>% dplyr::filter(cluster == i) %>% dplyr::select(promo_seq))
+  promoters_cluster_name <- promoters %>% dplyr::filter(cluster == i) %>% dplyr::select(Gene_id)
+  }
+
+
+write.fasta(as.list(promoters_cluster$promo_seq), as.character(promoters_cluster_name$Gene_name), "./R_outputs/MAFFT/mafft_promo.fasta") 
+
+### Run MAFTT and get reuslt from Jalview
+
+# Consensus
+consensus <- read.fasta("./R_outputs/Jalview_output/consensus.fasta", as.string = TRUE)
+
+consensus <- as.character(consensus$Consensus[1])
+
+# Occupancy
+occupancy <- read_csv("./R_outputs/Jalview_output/occupancy.csv", 
+    col_names = FALSE, show_col_types = FALSE)
+
+sequence = c()
+
+for (i in 1:nchar(consensus)){
+  sequence <- append(sequence, substr(consensus, i, i))
+}
+
+sequence <- as.data.frame(sequence)
+
+occupancy <- t(occupancy)
+end <- length(occupancy)-1
+occupancy <- as.data.frame(occupancy[2:end])
+
+# Alignments
+alignments <- read.fasta("./R_outputs/MAFFT/mafft_promo_aligned.fasta", as.string = TRUE)
+
+test_seqs <- as.data.frame(c(1:nchar(consensus)))
+
+for (a in alignments) {
+  test_seq <- c()
+  s <- a[1]
+  for (i in 1:nchar(s)){
+    test_seq <- append(test_seq, substr(s, i, i))
+  }
+  test_seq <- as.data.frame(test_seq)
+  test_seqs <- cbind(test_seqs, test_seq)
+}
+
+test_seqs <- test_seqs[-1]
+colnames(test_seqs) <- as.character(promo_metadata$Gene_name[1:3])
+
+binding_sites <- bind_cols(sequence, test_seqs, occupancy)
+colnames(binding_sites)[ncol(binding_sites)] <- "occupancy"
+
+# Binding sites
+binding_sites <- binding_sites %>% mutate(sequence=replace(sequence, occupancy < 3, "+"))
+
+idx <- 1
+binding_site_seqs <- list()
+binding_site <- c()
+
+for (n in binding_sites$sequence){
+  if (n == "+"){
+    if(length(binding_site) == 0) {
+      idx <- idx + 1
+    } else {
+       binding_site_seqs <- append(binding_site_seqs, list(binding_site))
+       binding_site <- c()
+       idx <- idx + 1
+      }
+  } else {
+    binding_site <- append(binding_site, idx)
+    idx <- idx + 1
+  }
+  
+}
+
+binding_site_seqs_filtered <- list()
+
+for (i in binding_site_seqs){
+  if (length(i) >= 6){
+    binding_site_seqs_filtered <- append(binding_site_seqs_filtered, list(i))
+    }
+}
+
+putative_TFBS <- list()
+seq_n <- 1
+
+for (i in binding_site_seqs_filtered){
+  start <- i[1]
+  end <- i[length(i)]
+  for (j in test_seqs[start:end,]){
+    putative_TFBS <- append(putative_TFBS, list(paste(j, collapse = '')))
+  }
+  write.fasta(putative_TFBS, colnames(test_seqs),
+              paste("./R_outputs/Putative_TFBS/putative_TFBS_", seq_n, ".fasta", sep = ""))
+  putative_TFBS <- list()
+  seq_n <- seq_n + 1 
+}
+
+letterMatrix <- function(input){
+  # Ensure kmers are the same length characters(ggseqlogo)
+  # First, ensure that the length of the input base sequence is consistent
+  seq.len = sapply(input, nchar) # Calculate the number of bases in each sequence
+  num_pos = seq.len[1] # Number of bases in the first sequence
+  if(! all(seq.len == num_pos)) { # The number of bases of all sequences must be the same. If not, an error will be reported
+    stop('Sequences in alignment must have identical lengths')
+  }
+
+  # Construct matrix of letters(ggseqlogo)
+  # Next, build a matrix, each element is a base
+  split = unlist( sapply(input, function(seq){strsplit(seq, '')}) ) # strsplit can cut strings into individual characters
+
+  t( matrix(split, seq.len, length(split)/num_pos) )
+}
+
+make_ppm <- function(seqs, ppm=TRUE, seq_type="dna") {
+  # seqs: A vector of strings, each string is a DNA or RNA sequence
+  # ppm: Whether to return PPM, default is PPM, else return PFM
+  # seq_type: Sequence type, can be "dna" of "rna"
+
+  letter_mat = letterMatrix(seqs) # Construct a base matrix, each row is a sequence, and each column is the base position
+
+  # Get namespace(ggseqlogo)
+  if(seq_type == "dna") {
+    namespace = c("A", "T", "G", "C") 
+  } else if (seq_type == "rna" ) {
+    namespace = c("A", "U", "G", "C") 
+  } else {
+    stop('Wrong seq_type! Must be one of "dna" and "rna".')
+  }
+
+  # Construct PWM(ggseqlogo)
+  pfm_mat = apply(letter_mat, 2, function(pos.data){ # The second parameter of apply is 2, which indicates the operation on the column
+    # Get frequencies (ggseqlogo)
+    t = table(pos.data) # Calculate the frequency of four bases at this position
+    # Match to aa(ggseqlogo)
+    ind = match(namespace, names(t)) # 
+    # Create column(ggseqlogo)
+    col = t[ind] # 
+    col[is.na(col)] = 0
+    names(col) = namespace
+
+    if(ppm) { # If PPM is returned, divide the base frequency by the total number of bases in this column
+      col = col / sum(col)      
+    }
+    col # Function return value col
+  })
+
+  num_pos = nchar(seqs[1])
+  colnames(pfm_mat) = 1:num_pos
+  pfm_mat
+
+}
+
+putative_TFBS1 <- read.fasta("./R_outputs/Putative_TFBS/putative_TFBS_11.fasta", as.string = T)
+pfm <- c()
+
+for (s in putative_TFBS1) {
+  pfm <- append(pfm, s)
+}
+
+pwm <- make_ppm(toupper(pfm))
+seqLogo(pwm)
+
+```
+
+```{r extract DNA-binding sites based on kmean clustering}
+
+```

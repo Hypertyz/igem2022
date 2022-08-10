@@ -1,0 +1,199 @@
+---
+title: "y04.1_Volcano"
+author: "Trine Bertram Rasmussen"
+date: '2022-06-22'
+output: html_document
+---
+
+This script makes volcano plots and as MA-plot. I compare the data with unshrunken LFC to 
+data with shrunken LFC with these plots. It does lower the LFC a lot but doesnt seem to
+affect the significant DEGs which is good. 
+Lets continue the analysis with shrunken LFC.
+
+```{r setup, include=FALSE}
+
+library("ggplot2") #for plotting
+library("DESeq2") # for DESeq analysis
+library("EnhancedVolcano")
+library(ggpubr)
+library("patchwork") # for merging the three volcano plots
+
+setwd("./")
+
+#made in 03_DESeqObject
+dds <- readRDS("R_outputs/dds.rds") #DESeq object
+res <- readRDS("R_outputs/res.rds") #result table from DESeq object
+
+# contrasts
+GHB_NH4 <- readRDS("R_outputs/GHB_NH4.rds")
+Suc_GABA <- readRDS("R_outputs/Suc_GABA.rds")
+
+GHB_NH4_unshrunken <- readRDS("R_outputs/GHB_NH4_unshrunken.rds")
+Suc_GABA_unshrunken <- readRDS("R_outputs/Suc_GABA_unshrunken.rds")
+
+```
+
+
+```{r Volcano plots shrunken, fig.height=10, fig.width=12}
+theme_set(theme_pubr())
+
+pCutoff = 0.05
+FCcutoff = 1.0
+
+#Interesting genes
+#chosen_genes <- c("YOR388C","YNR034W-A","YOL052C-A" , "YPL276W", "YLR258W","YMR169C","YPL275W")
+
+VolcanoPlot1 <- EnhancedVolcano(GHB_NH4,
+                                        lab = rownames(GHB_NH4),
+                                        #selectLab = chosen_genes,
+                                        #selectLab = NA,
+                                        x = 'log2FoldChange',
+                                        y = 'padj',
+                                        title = "GHB_NH4 vs. Suc_NH4",
+                                        subtitle = bquote(italic(" ")),
+                                        legendPosition = 'top',
+                                        pCutoff = pCutoff,
+                                        FCcutoff = FCcutoff,
+                                        drawConnectors = TRUE,
+                                        widthConnectors = 1.0
+                                        #ylim = c(0,350),
+                                        #xlim = c(-5,8)
+                                        )
+                                        
+
+VolcanoPlot2 <- EnhancedVolcano(Suc_GABA,
+                                        lab = rownames(Suc_GABA),
+                                        #selectLab = chosen_genes,
+                                        #selectLab = NA,
+                                        x = 'log2FoldChange',
+                                        y = 'padj',
+                                        title = "Suc_GABA vs. Suc_NH4",
+                                        subtitle = bquote(italic(" ")),
+                                        legendPosition = 'top',
+                                        pCutoff = pCutoff,
+                                        FCcutoff = FCcutoff,
+                                        drawConnectors = TRUE,
+                                        widthConnectors = 1.0
+                                        #ylim = c(0,350),
+                                        #xlim = c(-5,8)
+                                        )
+
+VolcanoPlot1 + VolcanoPlot2
+Combined <- VolcanoPlot1 + VolcanoPlot2
+
+ggsave(
+  "Volcano_Combined.pdf",
+  plot = Combined,
+  path = "R_outputs/",
+  height = 7,
+  width = 12,
+  dpi = 1000
+)
+```
+
+```{r Volcano plots shrunk, fig.height=10, fig.width=12}
+
+theme_set(theme_pubr())
+
+pCutoff = 0.05
+FCcutoff = 1.0
+
+#Interesting genes
+#chosen_genes <- c("YOR388C","YNR034W-A","YOL052C-A" , "YPL276W", "YLR258W","YMR169C","YPL275W")
+
+VolcanoPlot1_unshrunken <- EnhancedVolcano(GHB_NH4_unshrunken,
+                                        lab = rownames(GHB_NH4_unshrunken),
+                                        #selectLab = chosen_genes,
+                                        #selectLab = NA,
+                                        x = 'log2FoldChange',
+                                        y = 'padj',
+                                        title = "GHB_NH4 vs. Suc_NH4",
+                                        subtitle = bquote(italic(" ")),
+                                        legendPosition = 'top',
+                                        pCutoff = pCutoff,
+                                        FCcutoff = FCcutoff,
+                                        drawConnectors = TRUE,
+                                        widthConnectors = 1.0
+                                        #ylim = c(0,350),
+                                        #xlim = c(-5,8)
+                                        )
+                                        
+
+VolcanoPlot2_unshrunken <- EnhancedVolcano(Suc_GABA_unshrunken,
+                                        lab = rownames(Suc_GABA_unshrunken),
+                                        #selectLab = chosen_genes,
+                                        #selectLab = NA,
+                                        x = 'log2FoldChange',
+                                        y = 'padj',
+                                        title = "Suc_GABA vs. Suc_NH4",
+                                        subtitle = bquote(italic(" ")),
+                                        legendPosition = 'top',
+                                        pCutoff = pCutoff,
+                                        FCcutoff = FCcutoff,
+                                        drawConnectors = TRUE,
+                                        widthConnectors = 1.0
+                                        #ylim = c(0,350),
+                                        #xlim = c(-5,8)
+                                        )
+
+VolcanoPlot1_unshrunken + VolcanoPlot2_unshrunken
+
+```
+
+
+```{r plotCounts}
+
+
+#Choose interesting genes to look at!
+par(mfrow=c(2,3))
+plotCounts(dds, gene="YOR388C", intgroup="condition")
+plotCounts(dds, gene="YPL276W", intgroup="condition")
+plotCounts(dds, gene="YPL275W", intgroup="condition")
+
+plotCounts(dds, gene="YMR169C", intgroup="condition")
+plotCounts(dds, gene="YMR320W", intgroup="condition")
+plotCounts(dds, gene="YPL277C", intgroup="condition")
+
+```
+
+
+
+## show the effect of the shrinked lfc for our data
+We can see that the LFC for the lowly expressed genes is corrected with the lcfShrink().
+However, it does not seem to affect any significant genes, as indicated in the volcano plot.
+
+```{r MAplot, fig.height=7, fig.width=7}
+
+
+pdf(file = "./R_outputs/d04.1_MA_plots.pdf",   # The directory you want to save the file in
+    width = 7, # The width of the plot in inches
+    height = 6) 
+
+par(mfrow = c(2, 2))
+plotMA(GHB_NH4_unshrunken,
+       colNonSig = "black",
+       colSig = "blue",
+       colLine = "grey40", 
+       main = "GHB_NH4_unshrunken")
+plotMA(GHB_NH4,
+       colNonSig = "black",
+       colSig = "blue",
+       colLine = "grey40", 
+       main = "GHB_NH4_shrunken")
+
+plotMA(Suc_GABA_unshrunken,
+       colNonSig = "black",
+       colSig = "blue",
+       colLine = "grey40",
+       main = "Suc_GABA_unshrunken")
+plotMA(Suc_GABA,
+       colNonSig = "black",
+       colSig = "blue",
+       colLine = "grey40",
+       main = "Suc_GABA_shrunken")
+dev.off()
+
+
+```
+
+

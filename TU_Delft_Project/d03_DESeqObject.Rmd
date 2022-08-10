@@ -1,0 +1,225 @@
+---
+title: "y03_DESeqObject"
+author: "Trine Bertram Rasmussen"
+date: '2022-06-22'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(DESeq2)
+library(tximport)
+library(EnhancedVolcano)
+library(ggpubr)
+library(ashr)  #installed manually
+
+#setwd("./TU_Delft_Project/")
+
+```
+
+## RNA-seq analysis to detect promoter sequences
+
+```{r load data}
+
+file_names = c(
+"SRR8121136",
+"SRR8121137",
+"SRR8121138",
+"SRR8121139",
+"SRR8121140",
+"SRR8121141",
+"SRR8121142",
+"SRR8121143",
+"SRR8121144",
+"SRR8121145",
+"SRR8121146",
+"SRR8121147"
+)
+
+
+abundance <- read.delim(paste("./sample_reads/", file_names[1], "/abundance.tsv",
+                              sep = ""))
+```
+
+```{r}
+abundance <- abundance %>% select(target_id, tpm) %>% rename_with(recode, tpm = file_names[1])
+```
+
+```{r}
+
+# Extracting the transcripts per million (tpm) values from all of the samples
+for (i in 2:length(file_names)) {
+  tmp <- read.delim(paste("./sample_reads/", file_names[i], "/abundance.tsv",
+                          sep = ""))
+  
+  abundance <- tmp %>% select(target_id, tpm) %>%  rename_with(recode, tpm = file_names[i]) %>% left_join(abundance, by ="target_id")
+}
+abundance
+
+```
+
+```{r prepare matrix}
+source("d00_functions.R")
+metaData <- read_clean_metaData()
+metaData <- metaData[-4:-6]
+
+files <- file.path("./sample_reads", file_names, "abundance.h5")
+
+names(files) <- paste0(metaData$Name)
+
+txi.kallisto <- tximport(files, type = "kallisto", txOut = TRUE, countsFromAbundance = "lengthScaledTPM")
+
+ddsTxi <- DESeqDataSetFromTximport(txi.kallisto,
+                                   colData = metaData,
+                                   design = ~ condition)
+
+
+```
+
+### DESeq2
+
+```{r DESeq2}
+dds <- DESeq(ddsTxi)
+res <- results(dds)
+
+# Comparing GHB and GABA samples with sucrose+NH4 samples as control. 
+# with unshrunken LFC values
+
+GHB_NH4_unshrunken <- results(dds, contrast=c("condition","GHB_NH4","Suc_NH4"))
+Suc_GABA_unshrunken <- results(dds, contrast=c("condition","Suc_GABA","Suc_NH4"))
+
+# with shrunken LFC values
+GHB_NH4 <- lfcShrink(dds,contrast=c("condition","GHB_NH4","Suc_NH4"), res=GHB_NH4_unshrunken, type="ashr")
+Suc_GABA <- lfcShrink(dds, contrast=c("condition","Suc_GABA","Suc_NH4"), res=Suc_GABA_unshrunken,type="ashr")
+
+#WOOPS I'm getting this warning that I haven't solved: 
+#warning: solve(): system is singular (rcond: 5.32941e-17); attempting approx solution
+
+```
+
+
+## save objects
+```{r save}
+res <- res[order(res$padj),]
+summary(res)
+head(res)
+
+saveRDS(dds, "R_outputs/dds.rds")
+saveRDS(res, "R_outputs/res.rds")
+
+GHB_NH4_unshrunken <- GHB_NH4_unshrunken[order(GHB_NH4_unshrunken$padj),]
+Suc_GABA_unshrunken <- Suc_GABA_unshrunken[order(Suc_GABA_unshrunken$padj),]
+
+# sort so that the small padj are in the top of the res tables.
+GHB_NH4 <- GHB_NH4[order(GHB_NH4$padj),]
+Suc_GABA <- Suc_GABA[order(Suc_GABA$padj),]
+
+saveRDS(GHB_NH4_unshrunken, "R_outputs/GHB_NH4_unshrunken.rds")
+saveRDS(Suc_GABA_unshrunken, "R_outputs/Suc_GABA_unshrunken.rds")
+
+saveRDS(GHB_NH4, "R_outputs/GHB_NH4.rds")
+saveRDS(Suc_GABA, "R_outputs/Suc_GABA.rds")
+
+```
+
+
+
+#Investigate the count distribution
+```{r}
+#-----------Libraries-and-path--------------------------------------------------
+library("ggplot2")
+library("patchwork")
+#setwd("C:/Users/hr/OneDrive - Danmarks Tekniske Universitet/DTU2/iGEM 2022/Transcriptomics/Yeast_data/") #DTU2/iGEM/Transcriptomics/Yeast_data
+
+#-----------Load-count-and-metadata---------------------------------------------
+
+source("d00_functions.R")
+countData <- as.data.frame(txi.kallisto)[,13:24]
+head(countData, 3)
+```
+
+```{r}
+#-----------Investigate count distribution plots--------------------------------
+
+counts.2_Suc_NH4_CountDistribution <- ggplot(countData) +
+                              geom_histogram(aes(x = counts.2_Suc_NH4), stat = "bin", bins = 700, color="Navy") +
+                              #xlim(-5,2000)+
+                              xlab("Raw expression counts") +
+                              ylab("Number of genes") + theme_Publication()+
+                              theme(axis.title.x = element_text(size = 15), 
+                                    axis.title.y = element_text(size = 15), 
+                                    axis.text.x = element_text(size=12), 
+                                    axis.text.y = element_text(size=12))
+counts.2_Suc_NH4_CountDistribution + xlim(-5,6000)
+```
+The number of genes looks quite low compared to what I have seen before
+
+
+
+```{r}
+# Investigate if mean < variance
+mean_counts <- apply(countData, 1, mean)
+variance_counts <- apply(countData, 1, var)
+df <- data.frame(mean_counts, variance_counts)
+
+p_variance_mean <- ggplot(df) +
+                  geom_point(aes(x=mean_counts, y=variance_counts), alpha=0.3, color= "Navy") + 
+                  geom_line(aes(x=mean_counts, y=mean_counts, color="red"), size=1)+
+                  scale_y_log10() +
+                  scale_x_log10() + 
+                  xlab("Mean of counts") +
+                  ylab("Variance of counts") + theme_Publication()+
+                  theme(axis.title.x = element_text(size = 15), 
+                      axis.title.y = element_text(size = 15), 
+                      axis.text.x = element_text(size=12), 
+                      axis.text.y = element_text(size=12),
+                      legend.position="none")
+
+p_variance_mean
+
+save <- counts.2_Suc_NH4_CountDistribution + p_variance_mean
+save <- save + plot_annotation(tag_levels = 'A') & theme(plot.tag = element_text(size = 17))
+save
+```
+
+
+```{r}
+#save figures
+
+ggsave(
+  "d03_counts.2_Suc_NH4_CountDistribution.pdf",
+  plot = counts.2_Suc_NH4_CountDistribution,
+  path = "R_outputs/",
+  height = 6,
+  width = 5,
+  dpi = 1000
+)
+
+ggsave(
+  "d03_p_variance_mean.pdf",
+  plot = p_variance_mean,
+  path = "R_outputs/",
+  height = 6,
+  width = 5,
+  dpi = 1000
+)
+
+ggsave(
+  "d03_Count_distribution_Combined.pdf",
+  plot = save,
+  path = "R_outputs/",
+  height = 6,
+  width = 10,
+  dpi = 1000
+)
+
+# As the variance tends to be greater than the mean -> use negative binomial distribution with DESeq.
+```
+
+
+
+
+
+
+
+
