@@ -156,15 +156,22 @@ EnhancedVolcano(Suc_GABA,
 library(clusterProfiler)
 
 reads_meta <- read.csv(file = "./sample_info/reads_metadata.csv")
-GHB_NH4_df_sig <- GHB_NH4_df_sig %>% left_join(reads_meta)
-Suc_GABA_df_sig <- Suc_GABA_df_sig %>% left_join(reads_meta)
-# KEGG pathway enrichment for top 1000 DEGs
-pathEnrich <- enrichKEGG(gene = GHB_NH4_df_sig$Gene_id,
-                         organism = "atu", # Yeast
+GHB_NH4_df_sig_enriched <- GHB_NH4_df %>% dplyr::filter(padj <0.05)
+Suc_GABA_df_sig_enriched <- Suc_GABA_df %>% dplyr::filter(padj <0.05)
+
+GHB_NH4_df_sig_enriched <- GHB_NH4_df_sig_enriched %>% left_join(reads_meta)
+Suc_GABA_df_sig_enriched <- Suc_GABA_df_sig_enriched %>% left_join(reads_meta)
+
+bg_gene <- GHB_NH4_df %>% left_join(reads_meta)
+bg_gene <- bg_gene$Gene_id
+
+# KEGG pathway enrichment
+pathEnrich <- enrichKEGG(gene = GHB_NH4_df_sig_enriched$Gene_id,
+                         organism = "atu", 
                          keyType = "kegg", # KEGG database
                          pvalueCutoff = 0.05,
                          pAdjustMethod = "BH",
-                         universe = GHB_NH4_df$Gene_id)
+                         universe = bg_gene)
 
 # Store the significantly enriched pathways (P < 0.05)
 signif_pathEnrich <- pathEnrich@result[pathEnrich@result$p.adjust < 0.05, ]
@@ -179,8 +186,8 @@ dotplot(pathEnrich, x = "Count", showCategory = 10, orderBy = "Count")
 # 3.2 Functional Class Scoring: Gene Set Enrichment Analysis
 
 # Create a list of logFCs with their corresponding genes as names
-logFC <- GHB_NH4_df_sig$log2FoldChange
-names(logFC) <- GHB_NH4_df_sig$Gene_id
+logFC <- GHB_NH4_df_sig_enriched$log2FoldChange[1:1000]
+names(logFC) <- GHB_NH4_df_sig_enriched$Gene_id[1:1000]
 
 # Order the list in decreasing order
 logFC <- sort(logFC, decreasing = TRUE)
@@ -197,26 +204,55 @@ gseaKEGG_results <- gseaKEGG@result
 # Plot the GSEA plot for a single enriched pathway
 gseaplot(gseaKEGG, geneSetID = gseaKEGG_results$ID[1])
 
+################################################################
+
+# KEGG pathway enrichment
+pathEnrich <- enrichKEGG(gene = Suc_GABA_df_sig_enriched$Gene_id,
+                         organism = "atu",
+                         keyType = "kegg", # KEGG database
+                         pvalueCutoff = 0.05,
+                         pAdjustMethod = "BH",
+                         universe = bg_gene)
+
+# Store the significantly enriched pathways (P < 0.05)
+signif_pathEnrich <- pathEnrich@result[pathEnrich@result$p.adjust < 0.05, ]
+
 ##########
 
-# 3.3 Pathway Topology: pathview
+# Show the 10 most significant pathways as a dot plot
+dotplot(pathEnrich, x = "Count", showCategory = 10, orderBy = "Count")
 
-# Install and load the required package
-library(pathview)
+##########
 
-# Run pathview for a particular pathway ID
-# pathview(gene.data = logFC,
-#          pathway.id = "atu00190",
-#          low = "red", mid = "grey", high = "green",
-#          species = "atu",
-#          limit = c(-10, 10),
-#          gene.idtype = "KEGG",
-#          kegg.dir = "./R_outputs/KEGG/")
+# 3.2 Functional Class Scoring: Gene Set Enrichment Analysis
+
+# Create a list of logFCs with their corresponding genes as names
+logFC <- Suc_GABA_df_sig_enriched$log2FoldChange[1:1000]
+names(logFC) <- Suc_GABA_df_sig_enriched$Gene_id[1:1000]
+
+# Order the list in decreasing order
+logFC <- sort(logFC, decreasing = TRUE)
+
+# Perform GSEA using KEGG pathways
+gseaKEGG <- gseKEGG(geneList = logFC,
+                    organism = "atu",
+                    nPerm = 1000, # Number of permutations
+                    pvalueCutoff = 0.05)
+
+# Extract the GSEA results
+gseaKEGG_results <- gseaKEGG@result
+
+# Plot the GSEA plot for a single enriched pathway
+gseaplot(gseaKEGG, geneSetID = gseaKEGG_results$ID[1])
+
 ```
 
 ## Extract promoters
 ```{r annotation}
 genome <- readDNAStringSet("./sample_info/GCA_000092025.1_ASM9202v1_genomic.fna")
+
+GHB_NH4_df_sig <- GHB_NH4_df_sig %>% left_join(reads_meta)
+Suc_GABA_df_sig <- Suc_GABA_df_sig %>% left_join(reads_meta)
 
 promo_seq <- c()
 strand <- c()
@@ -563,7 +599,7 @@ for (i in 1:length(list.files("./R_outputs/Putative_TFBS/OPTIC"))) {
 #   pointsize = 3
 # )
 plotMotifLogoStack(motifs)
-# dev.off()
+
 
 ```
 
@@ -721,7 +757,7 @@ for (i in 1:length(list.files("./R_outputs/Putative_TFBS/BclR"))) {
 #   pointsize = 20
 # )
 plotMotifLogoStack(motifs)
-# dev.off()
+
 
 ```
 
@@ -894,7 +930,7 @@ for (i in 1:length(list.files("./R_outputs/Putative_TFBS/Upregs"))) {
 #   pointsize = 20
 # )
 plotMotifLogoStack(motifs)
-# dev.off()
+
 
 ```
 
@@ -907,7 +943,7 @@ down_degs <- Suc_GABA_df[c(1,3)] %>% right_join(down_degs) %>% rename(Suc_GABA =
 down_degs <- down_degs %>% left_join(reads_meta)
 down_degs <- down_degs %>% mutate(diff = abs(GHB_NH4 - Suc_GABA),
                               mean = rowMeans(down_degs[2:3])) %>%
-  filter(diff < 1.25 & mean > 2)
+  filter(diff < 1.25 & mean < -2.4)
 
 promo_seq <- c()
 strand <- c()
@@ -942,25 +978,20 @@ for (i in 1:nrow(down_degs)) {
 
 down_degs <- cbind(down_degs, promo_seq, strand)
 
-neg_strand_promo_comp <- down_degs %>% dplyr::filter(strand == "-") %>% mutate(promo_seq=replace(promo_seq, strand=="-", chartr("ATGC","TACG",promo_seq)))
 
-pos_strand_promo <- down_degs %>% dplyr::filter(strand == "+")
+promo_metadata <- down_degs %>% arrange(desc(mean))
 
-promo_metadata <- bind_rows(neg_strand_promo_comp, pos_strand_promo) %>% arrange(desc(mean))
-
-promo_metadata <- promo_metadata[4:7,]
-
-write.fasta(as.list(promo_metadata$promo_seq), as.character(promo_metadata$Gene_name), "./R_outputs/MAFFT/mafft_promo_upregs.fasta") 
+write.fasta(as.list(promo_metadata$promo_seq), as.character(promo_metadata$Gene_name), "./R_outputs/MAFFT/mafft_promo_downregs.fasta") 
 
 ### Run MAFTT and get reuslt from Jalview
 
 # Consensus
-consensus <- read.fasta("./R_outputs/Jalview_output/consensus_upregs.fasta", as.string = TRUE)
+consensus <- read.fasta("./R_outputs/Jalview_output/consensus_downregs.fasta", as.string = TRUE)
 
 consensus <- as.character(consensus$Consensus[1])
 
 # Occupancy
-occupancy <- read_csv("./R_outputs/Jalview_output/occupancy_upregs.csv", 
+occupancy <- read_csv("./R_outputs/Jalview_output/occupancy_downregs.csv", 
     col_names = FALSE, show_col_types = FALSE)
 
 sequence = c()
@@ -976,7 +1007,7 @@ end <- length(occupancy)-1
 occupancy <- as.data.frame(occupancy[2:end])
 
 # Alignments
-alignments <- read.fasta("./R_outputs/MAFFT/mafft_promo_upregs_aligned.fasta", as.string = TRUE)
+alignments <- read.fasta("./R_outputs/MAFFT/mafft_promo_downregs_aligned.fasta", as.string = TRUE)
 
 test_seqs <- as.data.frame(c(1:nchar(consensus)))
 
@@ -997,7 +1028,7 @@ binding_sites <- bind_cols(sequence, test_seqs, occupancy)
 colnames(binding_sites)[ncol(binding_sites)] <- "occupancy"
 
 # Binding sites
-binding_sites <- binding_sites %>% mutate(sequence=replace(sequence, occupancy < 4, "+"))
+binding_sites <- binding_sites %>% mutate(sequence=replace(sequence, occupancy < 3, "+"))
 
 idx <- 1
 binding_site_seqs <- list()
@@ -1037,36 +1068,34 @@ for (i in binding_site_seqs_filtered){
     putative_TFBS <- append(putative_TFBS, list(paste(j, collapse = '')))
   }
   write.fasta(putative_TFBS, colnames(test_seqs),
-              paste("./R_outputs/Putative_TFBS/Upregs/putative_TFBS_", seq_n, ".fasta", sep = ""))
+              paste("./R_outputs/Putative_TFBS/Downregs/putative_TFBS_", seq_n, ".fasta", sep = ""))
   putative_TFBS <- list()
   seq_n <- seq_n + 1 
 }
 
 motifs <- list()
 
-for (i in 1:length(list.files("./R_outputs/Putative_TFBS/Upregs"))) {
-  putative_TFBS <- read.fasta(paste("./R_outputs/Putative_TFBS/Upregs/putative_TFBS_", i, ".fasta", sep=""), as.string = T)
+for (i in 1:length(list.files("./R_outputs/Putative_TFBS/Downregs"))) {
+  putative_TFBS <- read.fasta(paste("./R_outputs/Putative_TFBS/Downregs/putative_TFBS_", i, ".fasta", sep=""), as.string = T)
   pfm <- c()
   for (s in putative_TFBS) {
     pfm <- append(pfm, s)
-    }
+  }
   pwm <- make_ppm(toupper(pfm))
   motif <- new("pfm", mat=as.matrix(pwm), name=paste("TFBS_", i, sep=""))
-  if (length(table(motif@mat)) == 5) {
-   if (table(motif@mat)[5] > round(ncol(motif@mat) * 0.2) & table(motif@mat)[4] > round(ncol(motif@mat) * 0.1)) {
-   motifs <- append(motif, motifs) 
-   } 
-  }
+  if (table(motif@mat)[4] > round(ncol(motif@mat) * 0.3) & table(motif@mat)[3] > round(ncol(motif@mat) * 0.25)) {
+    motifs <- append(motif, motifs) 
+  } 
 }
 
 # png(
-#   filename="./TU_Delft_Project/R_outputs/upregs_motifs.png",
+#   filename="./TU_Delft_Project/R_outputs/downregs_motifs.png",
 #   width     = 1920,
 #   height    = 1080,
 #   units     = "px",
 #   pointsize = 20
 # )
 plotMotifLogoStack(motifs)
-# dev.off()
+
 
 ```
