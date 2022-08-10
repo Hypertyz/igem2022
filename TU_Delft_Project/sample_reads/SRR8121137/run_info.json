@@ -1,0 +1,13 @@
+{
+	"n_targets": 5355,
+	"n_bootstraps": 1000,
+	"n_processed": 5533980,
+	"n_pseudoaligned": 3417718,
+	"n_unique": 3387093,
+	"p_pseudoaligned": 61.8,
+	"p_unique": 61.2,
+	"kallisto_version": "0.46.1",
+	"index_version": 10,
+	"start_time": "Tue Aug  9 21:20:19 2022",
+	"call": "/mnt/a/IGEM/kallisto/kallisto quant -i transcripts.idx -o SRR8121137 -b 1000 --bias --single-overhang -t 16 SRR8121137/SRR8121137_1.fastq.gz SRR8121137/SRR8121137_2.fastq.gz"
+}
