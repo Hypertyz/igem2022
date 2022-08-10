@@ -207,7 +207,6 @@ write.csv(signif_pathEnrich, file = "./R_outputs/KEGG/signif_pathEnrich.csv",
 ## Extract promoters
 
 ```{r promoters}
-library("Biostrings")
 
 genome = readDNAStringSet("./sample_info/S288C_reference_sequence_R64-3-1_20210421.fsa")
 

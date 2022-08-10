@@ -17,6 +17,7 @@ library(seqLogo)
 library(motifStack)
 library(Biostrings)
 library(GenomicFeatures)
+library(stringr)
 
 file_names = c(
 "SRR8121136",
@@ -32,7 +33,6 @@ file_names = c(
 "SRR8121146",
 "SRR8121147"
 )
-
 
 ```
 
@@ -206,9 +206,9 @@ library(pathview)
 
 # Run pathview for a particular pathway ID
 # pathview(gene.data = logFC,
-#          pathway.id = "sce01200",
+#          pathway.id = "atu00190",
 #          low = "red", mid = "grey", high = "green",
-#          species = "sce",
+#          species = "atu",
 #          limit = c(-10, 10),
 #          gene.idtype = "KEGG",
 #          kegg.dir = "./R_outputs/KEGG/")
@@ -216,8 +216,6 @@ library(pathview)
 
 ## Extract promoters
 ```{r annotation}
-library(stringr)
-
 genome <- readDNAStringSet("./sample_info/GCA_000092025.1_ASM9202v1_genomic.fna")
 
 promo_seq <- c()
@@ -269,7 +267,7 @@ write.table(prom_can, "./R_outputs/promoters.csv", append = FALSE, sep = "\n",
 
 ## Find DNA-binding sites
 
-```{r extract DNA-binding sites based on MAFFT alignment}
+```{r extract DNA-binding sites based on kmean clustering, fig.width=15, fig.height=18}
 points <- promo_metadata$log2FoldChange
 
 clusters <- kmeans(points, centers = 4)
@@ -441,6 +439,634 @@ seqLogo(pwm)
 
 ```
 
-```{r extract DNA-binding sites based on kmean clustering}
+```{r extract DNA-binding sites based on OPTIC clustering, fig.width=15, fig.height=18}
+clusters <- read.csv("./notebooks/clusters.csv")
+
+promoters <- promo_metadata %>% bind_cols(clusters$cluster) %>% dplyr::rename(cluster = ...15)
+
+promoters_cluster <- as.list(promoters %>% dplyr::filter(cluster == 0) %>% dplyr::select(promo_seq))
+promoters_cluster_name <- promoters %>% dplyr::filter(cluster == 0) %>% dplyr::select(Gene_name)
+
+
+write.fasta(as.list(promoters_cluster$promo_seq), as.character(promoters_cluster_name$Gene_name), "./R_outputs/MAFFT/mafft_promo_OPTIC.fasta") 
+
+### Run MAFTT and get reuslt from Jalview
+
+# Consensus
+consensus <- read.fasta("./R_outputs/Jalview_output/consensus_OPTIC.fasta", as.string = TRUE)
+
+consensus <- as.character(consensus$Consensus[1])
+
+# Occupancy
+occupancy <- read_csv("./R_outputs/Jalview_output/occupancy_OPTIC.csv", 
+    col_names = FALSE, show_col_types = FALSE)
+
+sequence = c()
+
+for (i in 1:nchar(consensus)){
+  sequence <- append(sequence, substr(consensus, i, i))
+}
+
+sequence <- as.data.frame(sequence)
+
+occupancy <- t(occupancy)
+end <- length(occupancy)-1
+occupancy <- as.data.frame(occupancy[2:end])
+
+# Alignments
+alignments <- read.fasta("./R_outputs/MAFFT/mafft_promo_OPTIC_aligned.fasta", as.string = TRUE)
+
+test_seqs <- as.data.frame(c(1:nchar(consensus)))
+
+for (a in alignments) {
+  test_seq <- c()
+  s <- a[1]
+  for (i in 1:nchar(s)){
+    test_seq <- append(test_seq, substr(s, i, i))
+  }
+  test_seq <- as.data.frame(test_seq)
+  test_seqs <- cbind(test_seqs, test_seq)
+}
+
+test_seqs <- test_seqs[-1]
+colnames(test_seqs) <- as.character(promoters_cluster_name$Gene_name[1:4])
+
+binding_sites <- bind_cols(sequence, test_seqs, occupancy)
+colnames(binding_sites)[ncol(binding_sites)] <- "occupancy"
+
+# Binding sites
+binding_sites <- binding_sites %>% mutate(sequence=replace(sequence, occupancy < 4, "+"))
+
+idx <- 1
+binding_site_seqs <- list()
+binding_site <- c()
+
+for (n in binding_sites$sequence){
+  if (n == "+"){
+    if(length(binding_site) == 0) {
+      idx <- idx + 1
+    } else {
+       binding_site_seqs <- append(binding_site_seqs, list(binding_site))
+       binding_site <- c()
+       idx <- idx + 1
+      }
+  } else {
+    binding_site <- append(binding_site, idx)
+    idx <- idx + 1
+  }
+  
+}
+
+binding_site_seqs_filtered <- list()
+
+for (i in binding_site_seqs){
+  if (length(i) >= 6){
+    binding_site_seqs_filtered <- append(binding_site_seqs_filtered, list(i))
+    }
+}
+
+putative_TFBS <- list()
+seq_n <- 1
+
+for (i in binding_site_seqs_filtered){
+  start <- i[1]
+  end <- i[length(i)]
+  for (j in test_seqs[start:end,]){
+    putative_TFBS <- append(putative_TFBS, list(paste(j, collapse = '')))
+  }
+  write.fasta(putative_TFBS, colnames(test_seqs),
+              paste("./R_outputs/Putative_TFBS/OPTIC/putative_TFBS_", seq_n, ".fasta", sep = ""))
+  putative_TFBS <- list()
+  seq_n <- seq_n + 1 
+}
+
+motifs <- list()
+
+for (i in 1:length(list.files("./R_outputs/Putative_TFBS/OPTIC"))) {
+  putative_TFBS <- read.fasta(paste("./R_outputs/Putative_TFBS/OPTIC/putative_TFBS_", i, ".fasta", sep=""), as.string = T)
+  pfm <- c()
+  for (s in putative_TFBS) {
+    pfm <- append(pfm, s)
+    }
+  pwm <- make_ppm(toupper(pfm))
+  motif <- new("pfm", mat=as.matrix(pwm), name=paste("TFBS_", i, sep=""))
+  if (table(motif@mat)[names(table(motif@mat)) == 1] > 10) {
+   motifs <- append(motif, motifs) 
+  }
+}
+
+# png(
+#   filename="./TU_Delft_Project/R_outputs/Putative_TFBS/OPTIC/motifs.png",
+#   width     = 1920,
+#   height    = 1080,
+#   units     = "px",
+#   pointsize = 3
+# )
+plotMotifLogoStack(motifs)
+# dev.off()
+
+```
+
+```{r extract DNA-binding sites based on Blc operon, fig.width=15, fig.height=18}
+blcR <- GHB_NH4_df %>% left_join(reads_meta) %>% filter(grepl("blc", Gene_name, fixed = TRUE))
+blcR <- blcR[-4,]
+
+promo_seq <- c()
+strand <- c()
+
+for (i in 1:nrow(blcR)) {
+  locus <- blcR$Chromosome[i]
+  location <- blcR$Location[i]
+  if (grepl( "complement", location, fixed = TRUE)) {
+    strand <- append(strand, "-")
+    location <- gsub(')', '', location)
+    start_pos <-  str_split(location, pattern="-", simplify = T)[2]
+    end_pos <- as.integer(start_pos) + 1000
+  } else {
+    strand <- append(strand, "+")
+    start_pos <-  str_split(location, pattern="-", simplify = T)[1]
+    end_pos <- as.integer(start_pos) - 1000
+  }
+  if (locus == "AE007869.2") {
+    promo_seq_MM <- genome[1]$`AE007869.2 Agrobacterium tumefaciens str. C58 circular chromosome, complete sequence`[start_pos:end_pos]
+  }
+  if (locus == "AE007870.2") {
+    promo_seq_MM <- genome[2]$`AE007870.2 Agrobacterium tumefaciens str. C58 linear chromosome, complete sequence`[start_pos:end_pos]
+  }
+  if (locus == "AE007872.2") {
+    promo_seq_MM <- genome[3]$`AE007872.2 Agrobacterium tumefaciens str. C58 plasmid At, complete sequence`[start_pos:end_pos]
+  }
+  if (locus == "AE007871.2") {
+    promo_seq_MM <- genome[4]$`AE007871.2 Agrobacterium tumefaciens str. C58 plasmid Ti, complete sequence`[start_pos:end_pos]
+  }
+  promo_seq <- append(promo_seq, as.character(promo_seq_MM))
+}
+
+blcR <- cbind(blcR, promo_seq, strand)
+
+promo_metadata <- blcR %>% arrange(desc(log2FoldChange))
+
+write.fasta(as.list(promo_metadata$promo_seq), as.character(promo_metadata$Gene_name), "./R_outputs/MAFFT/mafft_promo_bcloperon.fasta") 
+
+### Run MAFTT and get reuslt from Jalview
+
+# Consensus
+consensus <- read.fasta("./R_outputs/Jalview_output/consensus_bcloperon.fasta", as.string = TRUE)
+
+consensus <- as.character(consensus$Consensus[1])
+
+# Occupancy
+occupancy <- read_csv("./R_outputs/Jalview_output/occupancy_bcloperon.csv", 
+    col_names = FALSE, show_col_types = FALSE)
+
+sequence = c()
+
+for (i in 1:nchar(consensus)){
+  sequence <- append(sequence, substr(consensus, i, i))
+}
+
+sequence <- as.data.frame(sequence)
+
+occupancy <- t(occupancy)
+end <- length(occupancy)-1
+occupancy <- as.data.frame(occupancy[2:end])
+
+# Alignments
+alignments <- read.fasta("./R_outputs/MAFFT/mafft_promo_bcloperon_aligned.fasta", as.string = TRUE)
+
+test_seqs <- as.data.frame(c(1:nchar(consensus)))
+
+for (a in alignments) {
+  test_seq <- c()
+  s <- a[1]
+  for (i in 1:nchar(s)){
+    test_seq <- append(test_seq, substr(s, i, i))
+  }
+  test_seq <- as.data.frame(test_seq)
+  test_seqs <- cbind(test_seqs, test_seq)
+}
+
+test_seqs <- test_seqs[-1]
+colnames(test_seqs) <- as.character(promo_metadata$Gene_name)
+
+binding_sites <- bind_cols(sequence, test_seqs, occupancy)
+colnames(binding_sites)[ncol(binding_sites)] <- "occupancy"
+
+# Binding sites
+binding_sites <- binding_sites %>% mutate(sequence=replace(sequence, occupancy < 3, "+"))
+
+idx <- 1
+binding_site_seqs <- list()
+binding_site <- c()
+
+for (n in binding_sites$sequence){
+  if (n == "+"){
+    if(length(binding_site) == 0) {
+      idx <- idx + 1
+    } else {
+       binding_site_seqs <- append(binding_site_seqs, list(binding_site))
+       binding_site <- c()
+       idx <- idx + 1
+      }
+  } else {
+    binding_site <- append(binding_site, idx)
+    idx <- idx + 1
+  }
+  
+}
+
+binding_site_seqs_filtered <- list()
+
+for (i in binding_site_seqs){
+  if (length(i) >= 6){
+    binding_site_seqs_filtered <- append(binding_site_seqs_filtered, list(i))
+    }
+}
+
+putative_TFBS <- list()
+seq_n <- 1
+
+for (i in binding_site_seqs_filtered){
+  start <- i[1]
+  end <- i[length(i)]
+  for (j in test_seqs[start:end,]){
+    putative_TFBS <- append(putative_TFBS, list(paste(j, collapse = '')))
+  }
+  write.fasta(putative_TFBS, colnames(test_seqs),
+              paste("./R_outputs/Putative_TFBS/BclR/putative_TFBS_", seq_n, ".fasta", sep = ""))
+  putative_TFBS <- list()
+  seq_n <- seq_n + 1 
+}
+
+motifs <- list()
+
+for (i in 1:length(list.files("./R_outputs/Putative_TFBS/BclR"))) {
+  putative_TFBS <- read.fasta(paste("./R_outputs/Putative_TFBS/BclR/putative_TFBS_", i, ".fasta", sep=""), as.string = T)
+  pfm <- c()
+  for (s in putative_TFBS) {
+    pfm <- append(pfm, s)
+    }
+  pwm <- make_ppm(toupper(pfm))
+  motif <- new("pfm", mat=as.matrix(pwm), name=paste("TFBS_", i, sep=""))
+  if (table(motif@mat)[4] > round(ncol(motif@mat) * 0.3) & table(motif@mat)[3] > round(ncol(motif@mat) * 0.25)) {
+   motifs <- append(motif, motifs) 
+  }
+}
+
+# png(
+#   filename="./TU_Delft_Project/R_outputs/motifs_Blc.png",
+#   width     = 1920,
+#   height    = 1080,
+#   units     = "px",
+#   pointsize = 20
+# )
+plotMotifLogoStack(motifs)
+# dev.off()
+
+```
+
+```{r extract DNA-binding sites based on upregulated genes on 2 conditions, fig.width=15, fig.height=18}
+up_degs <- read.csv("./R_outputs/shared_DEGs_up.csv", row.names=1, dec=",")
+colnames(up_degs) <- "Protein_id"
+
+up_degs <- GHB_NH4_df[c(1,3)] %>% right_join(up_degs) %>% rename(GHB_NH4 = log2FoldChange)
+up_degs <- Suc_GABA_df[c(1,3)] %>% right_join(up_degs) %>% rename(Suc_GABA = log2FoldChange)
+up_degs <- up_degs %>% left_join(reads_meta)
+up_degs <- up_degs %>% mutate(diff = abs(GHB_NH4 - Suc_GABA),
+                              mean = rowMeans(up_degs[2:3])) %>%
+  filter(diff < 1.25 & mean > 2)
+
+promo_seq <- c()
+strand <- c()
+
+for (i in 1:nrow(up_degs)) {
+  locus <- up_degs$Chromosome[i]
+  location <- up_degs$Location[i]
+  if (grepl( "complement", location, fixed = TRUE)) {
+    strand <- append(strand, "-")
+    location <- gsub(')', '', location)
+    start_pos <-  str_split(location, pattern="-", simplify = T)[2]
+    end_pos <- as.integer(start_pos) + 1000
+  } else {
+    strand <- append(strand, "+")
+    start_pos <-  str_split(location, pattern="-", simplify = T)[1]
+    end_pos <- as.integer(start_pos) - 1000
+  }
+  if (locus == "AE007869.2") {
+    promo_seq_MM <- genome[1]$`AE007869.2 Agrobacterium tumefaciens str. C58 circular chromosome, complete sequence`[start_pos:end_pos]
+  }
+  if (locus == "AE007870.2") {
+    promo_seq_MM <- genome[2]$`AE007870.2 Agrobacterium tumefaciens str. C58 linear chromosome, complete sequence`[start_pos:end_pos]
+  }
+  if (locus == "AE007872.2") {
+    promo_seq_MM <- genome[3]$`AE007872.2 Agrobacterium tumefaciens str. C58 plasmid At, complete sequence`[start_pos:end_pos]
+  }
+  if (locus == "AE007871.2") {
+    promo_seq_MM <- genome[4]$`AE007871.2 Agrobacterium tumefaciens str. C58 plasmid Ti, complete sequence`[start_pos:end_pos]
+  }
+  promo_seq <- append(promo_seq, as.character(promo_seq_MM))
+}
+
+up_degs <- cbind(up_degs, promo_seq, strand)
+
+neg_strand_promo_comp <- up_degs %>% dplyr::filter(strand == "-") %>% mutate(promo_seq=replace(promo_seq, strand=="-", chartr("ATGC","TACG",promo_seq)))
+
+pos_strand_promo <- up_degs %>% dplyr::filter(strand == "+")
+
+promo_metadata <- bind_rows(neg_strand_promo_comp, pos_strand_promo) %>% arrange(desc(mean))
+
+promo_metadata <- promo_metadata[4:7,]
+
+write.fasta(as.list(promo_metadata$promo_seq), as.character(promo_metadata$Gene_name), "./R_outputs/MAFFT/mafft_promo_upregs.fasta") 
+
+### Run MAFTT and get reuslt from Jalview
+
+# Consensus
+consensus <- read.fasta("./R_outputs/Jalview_output/consensus_upregs.fasta", as.string = TRUE)
+
+consensus <- as.character(consensus$Consensus[1])
+
+# Occupancy
+occupancy <- read_csv("./R_outputs/Jalview_output/occupancy_upregs.csv", 
+    col_names = FALSE, show_col_types = FALSE)
+
+sequence = c()
+
+for (i in 1:nchar(consensus)){
+  sequence <- append(sequence, substr(consensus, i, i))
+}
+
+sequence <- as.data.frame(sequence)
+
+occupancy <- t(occupancy)
+end <- length(occupancy)-1
+occupancy <- as.data.frame(occupancy[2:end])
+
+# Alignments
+alignments <- read.fasta("./R_outputs/MAFFT/mafft_promo_upregs_aligned.fasta", as.string = TRUE)
+
+test_seqs <- as.data.frame(c(1:nchar(consensus)))
+
+for (a in alignments) {
+  test_seq <- c()
+  s <- a[1]
+  for (i in 1:nchar(s)){
+    test_seq <- append(test_seq, substr(s, i, i))
+  }
+  test_seq <- as.data.frame(test_seq)
+  test_seqs <- cbind(test_seqs, test_seq)
+}
+
+test_seqs <- test_seqs[-1]
+colnames(test_seqs) <- as.character(promo_metadata$Gene_name)
+
+binding_sites <- bind_cols(sequence, test_seqs, occupancy)
+colnames(binding_sites)[ncol(binding_sites)] <- "occupancy"
+
+# Binding sites
+binding_sites <- binding_sites %>% mutate(sequence=replace(sequence, occupancy < 4, "+"))
+
+idx <- 1
+binding_site_seqs <- list()
+binding_site <- c()
+
+for (n in binding_sites$sequence){
+  if (n == "+"){
+    if(length(binding_site) == 0) {
+      idx <- idx + 1
+    } else {
+       binding_site_seqs <- append(binding_site_seqs, list(binding_site))
+       binding_site <- c()
+       idx <- idx + 1
+      }
+  } else {
+    binding_site <- append(binding_site, idx)
+    idx <- idx + 1
+  }
+  
+}
+
+binding_site_seqs_filtered <- list()
+
+for (i in binding_site_seqs){
+  if (length(i) >= 6){
+    binding_site_seqs_filtered <- append(binding_site_seqs_filtered, list(i))
+    }
+}
+
+putative_TFBS <- list()
+seq_n <- 1
+
+for (i in binding_site_seqs_filtered){
+  start <- i[1]
+  end <- i[length(i)]
+  for (j in test_seqs[start:end,]){
+    putative_TFBS <- append(putative_TFBS, list(paste(j, collapse = '')))
+  }
+  write.fasta(putative_TFBS, colnames(test_seqs),
+              paste("./R_outputs/Putative_TFBS/Upregs/putative_TFBS_", seq_n, ".fasta", sep = ""))
+  putative_TFBS <- list()
+  seq_n <- seq_n + 1 
+}
+
+motifs <- list()
+
+for (i in 1:length(list.files("./R_outputs/Putative_TFBS/Upregs"))) {
+  putative_TFBS <- read.fasta(paste("./R_outputs/Putative_TFBS/Upregs/putative_TFBS_", i, ".fasta", sep=""), as.string = T)
+  pfm <- c()
+  for (s in putative_TFBS) {
+    pfm <- append(pfm, s)
+    }
+  pwm <- make_ppm(toupper(pfm))
+  motif <- new("pfm", mat=as.matrix(pwm), name=paste("TFBS_", i, sep=""))
+  if (length(table(motif@mat)) == 5) {
+   if (table(motif@mat)[5] > round(ncol(motif@mat) * 0.2) & table(motif@mat)[4] > round(ncol(motif@mat) * 0.1)) {
+   motifs <- append(motif, motifs) 
+   } 
+  }
+}
+
+# png(
+#   filename="./TU_Delft_Project/R_outputs/upregs_motifs.png",
+#   width     = 1920,
+#   height    = 1080,
+#   units     = "px",
+#   pointsize = 20
+# )
+plotMotifLogoStack(motifs)
+# dev.off()
+
+```
+
+```{r extract DNA-binding sites based on downregulated genes on 2 conditions, fig.width=15, fig.height=18}
+down_degs <- read.csv("./R_outputs/shared_DEGs_down.csv", row.names=1, dec=",")
+colnames(down_degs) <- "Protein_id"
+
+down_degs <- GHB_NH4_df[c(1,3)] %>% right_join(down_degs) %>% rename(GHB_NH4 = log2FoldChange)
+down_degs <- Suc_GABA_df[c(1,3)] %>% right_join(down_degs) %>% rename(Suc_GABA = log2FoldChange)
+down_degs <- down_degs %>% left_join(reads_meta)
+down_degs <- down_degs %>% mutate(diff = abs(GHB_NH4 - Suc_GABA),
+                              mean = rowMeans(down_degs[2:3])) %>%
+  filter(diff < 1.25 & mean > 2)
+
+promo_seq <- c()
+strand <- c()
+
+for (i in 1:nrow(down_degs)) {
+  locus <- down_degs$Chromosome[i]
+  location <- down_degs$Location[i]
+  if (grepl( "complement", location, fixed = TRUE)) {
+    strand <- append(strand, "-")
+    location <- gsub(')', '', location)
+    start_pos <-  str_split(location, pattern="-", simplify = T)[2]
+    end_pos <- as.integer(start_pos) + 1000
+  } else {
+    strand <- append(strand, "+")
+    start_pos <-  str_split(location, pattern="-", simplify = T)[1]
+    end_pos <- as.integer(start_pos) - 1000
+  }
+  if (locus == "AE007869.2") {
+    promo_seq_MM <- genome[1]$`AE007869.2 Agrobacterium tumefaciens str. C58 circular chromosome, complete sequence`[start_pos:end_pos]
+  }
+  if (locus == "AE007870.2") {
+    promo_seq_MM <- genome[2]$`AE007870.2 Agrobacterium tumefaciens str. C58 linear chromosome, complete sequence`[start_pos:end_pos]
+  }
+  if (locus == "AE007872.2") {
+    promo_seq_MM <- genome[3]$`AE007872.2 Agrobacterium tumefaciens str. C58 plasmid At, complete sequence`[start_pos:end_pos]
+  }
+  if (locus == "AE007871.2") {
+    promo_seq_MM <- genome[4]$`AE007871.2 Agrobacterium tumefaciens str. C58 plasmid Ti, complete sequence`[start_pos:end_pos]
+  }
+  promo_seq <- append(promo_seq, as.character(promo_seq_MM))
+}
+
+down_degs <- cbind(down_degs, promo_seq, strand)
+
+neg_strand_promo_comp <- down_degs %>% dplyr::filter(strand == "-") %>% mutate(promo_seq=replace(promo_seq, strand=="-", chartr("ATGC","TACG",promo_seq)))
+
+pos_strand_promo <- down_degs %>% dplyr::filter(strand == "+")
+
+promo_metadata <- bind_rows(neg_strand_promo_comp, pos_strand_promo) %>% arrange(desc(mean))
+
+promo_metadata <- promo_metadata[4:7,]
+
+write.fasta(as.list(promo_metadata$promo_seq), as.character(promo_metadata$Gene_name), "./R_outputs/MAFFT/mafft_promo_upregs.fasta") 
+
+### Run MAFTT and get reuslt from Jalview
+
+# Consensus
+consensus <- read.fasta("./R_outputs/Jalview_output/consensus_upregs.fasta", as.string = TRUE)
+
+consensus <- as.character(consensus$Consensus[1])
+
+# Occupancy
+occupancy <- read_csv("./R_outputs/Jalview_output/occupancy_upregs.csv", 
+    col_names = FALSE, show_col_types = FALSE)
+
+sequence = c()
+
+for (i in 1:nchar(consensus)){
+  sequence <- append(sequence, substr(consensus, i, i))
+}
+
+sequence <- as.data.frame(sequence)
+
+occupancy <- t(occupancy)
+end <- length(occupancy)-1
+occupancy <- as.data.frame(occupancy[2:end])
+
+# Alignments
+alignments <- read.fasta("./R_outputs/MAFFT/mafft_promo_upregs_aligned.fasta", as.string = TRUE)
+
+test_seqs <- as.data.frame(c(1:nchar(consensus)))
+
+for (a in alignments) {
+  test_seq <- c()
+  s <- a[1]
+  for (i in 1:nchar(s)){
+    test_seq <- append(test_seq, substr(s, i, i))
+  }
+  test_seq <- as.data.frame(test_seq)
+  test_seqs <- cbind(test_seqs, test_seq)
+}
+
+test_seqs <- test_seqs[-1]
+colnames(test_seqs) <- as.character(promo_metadata$Gene_name)
+
+binding_sites <- bind_cols(sequence, test_seqs, occupancy)
+colnames(binding_sites)[ncol(binding_sites)] <- "occupancy"
+
+# Binding sites
+binding_sites <- binding_sites %>% mutate(sequence=replace(sequence, occupancy < 4, "+"))
+
+idx <- 1
+binding_site_seqs <- list()
+binding_site <- c()
+
+for (n in binding_sites$sequence){
+  if (n == "+"){
+    if(length(binding_site) == 0) {
+      idx <- idx + 1
+    } else {
+       binding_site_seqs <- append(binding_site_seqs, list(binding_site))
+       binding_site <- c()
+       idx <- idx + 1
+      }
+  } else {
+    binding_site <- append(binding_site, idx)
+    idx <- idx + 1
+  }
+  
+}
+
+binding_site_seqs_filtered <- list()
+
+for (i in binding_site_seqs){
+  if (length(i) >= 6){
+    binding_site_seqs_filtered <- append(binding_site_seqs_filtered, list(i))
+    }
+}
+
+putative_TFBS <- list()
+seq_n <- 1
+
+for (i in binding_site_seqs_filtered){
+  start <- i[1]
+  end <- i[length(i)]
+  for (j in test_seqs[start:end,]){
+    putative_TFBS <- append(putative_TFBS, list(paste(j, collapse = '')))
+  }
+  write.fasta(putative_TFBS, colnames(test_seqs),
+              paste("./R_outputs/Putative_TFBS/Upregs/putative_TFBS_", seq_n, ".fasta", sep = ""))
+  putative_TFBS <- list()
+  seq_n <- seq_n + 1 
+}
+
+motifs <- list()
+
+for (i in 1:length(list.files("./R_outputs/Putative_TFBS/Upregs"))) {
+  putative_TFBS <- read.fasta(paste("./R_outputs/Putative_TFBS/Upregs/putative_TFBS_", i, ".fasta", sep=""), as.string = T)
+  pfm <- c()
+  for (s in putative_TFBS) {
+    pfm <- append(pfm, s)
+    }
+  pwm <- make_ppm(toupper(pfm))
+  motif <- new("pfm", mat=as.matrix(pwm), name=paste("TFBS_", i, sep=""))
+  if (length(table(motif@mat)) == 5) {
+   if (table(motif@mat)[5] > round(ncol(motif@mat) * 0.2) & table(motif@mat)[4] > round(ncol(motif@mat) * 0.1)) {
+   motifs <- append(motif, motifs) 
+   } 
+  }
+}
+
+# png(
+#   filename="./TU_Delft_Project/R_outputs/upregs_motifs.png",
+#   width     = 1920,
+#   height    = 1080,
+#   units     = "px",
+#   pointsize = 20
+# )
+plotMotifLogoStack(motifs)
+# dev.off()
 
 ```
