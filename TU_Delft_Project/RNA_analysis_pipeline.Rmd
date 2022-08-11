@@ -475,50 +475,7 @@ seqLogo(pwm)
 
 ```
 
-```{r extract DNA-binding sites based on Blc operon (wrong), fig.width=15, fig.height=18}
-blcR <- GHB_NH4_df %>% left_join(reads_meta) %>% filter(grepl("blc", Gene_name, fixed = TRUE))
-blcR <- blcR[3,]
-
-promo_seq <- c()
-strand <- c()
-
-for (i in 1:nrow(blcR)) {
-  locus <- blcR$Chromosome[i]
-  location <- blcR$Location[i]
-  if (grepl( "complement", location, fixed = TRUE)) {
-    strand <- append(strand, "-")
-    location <- gsub(')', '', location)
-    start_pos <-  str_split(location, pattern="-", simplify = T)[2]
-    end_pos <- as.integer(start_pos) + 1000
-  } else {
-    strand <- append(strand, "+")
-    start_pos <-  str_split(location, pattern="-", simplify = T)[1]
-    end_pos <- as.integer(start_pos) - 1000
-  }
-  if (locus == "AE007869.2") {
-    promo_seq_MM <- genome[1]$`AE007869.2 Agrobacterium tumefaciens str. C58 circular chromosome, complete sequence`[start_pos:end_pos]
-  }
-  if (locus == "AE007870.2") {
-    promo_seq_MM <- genome[2]$`AE007870.2 Agrobacterium tumefaciens str. C58 linear chromosome, complete sequence`[start_pos:end_pos]
-  }
-  if (locus == "AE007872.2") {
-    promo_seq_MM <- genome[3]$`AE007872.2 Agrobacterium tumefaciens str. C58 plasmid At, complete sequence`[start_pos:end_pos]
-  }
-  if (locus == "AE007871.2") {
-    promo_seq_MM <- genome[4]$`AE007871.2 Agrobacterium tumefaciens str. C58 plasmid Ti, complete sequence`[start_pos:end_pos]
-  }
-  promo_seq <- append(promo_seq, as.character(promo_seq_MM))
-}
-
-blcR <- cbind(blcR, promo_seq, strand)
-
-promo_metadata <- blcR %>% arrange(desc(log2FoldChange))
-
-write.fasta(as.list(promo_metadata$promo_seq), as.character(promo_metadata$Gene_name), "./R_outputs/MAFFT/mafft_promo_bcloperon.fasta") 
-
-```
-
-```{r extract DNA-binding sites based on upregulated genes on 2 conditions, fig.width=15, fig.height=18}
+```{r create shared DEGs database}
 up_degs <- read.csv("./R_outputs/shared_DEGs_up.csv", row.names=1, dec=",")
 colnames(up_degs) <- "Protein_id"
 
@@ -526,54 +483,8 @@ up_degs <- GHB_NH4_df[c(1,3)] %>% right_join(up_degs) %>% rename(GHB_NH4 = log2F
 up_degs <- Suc_GABA_df[c(1,3)] %>% right_join(up_degs) %>% rename(Suc_GABA = log2FoldChange)
 up_degs <- up_degs %>% left_join(reads_meta)
 up_degs <- up_degs %>% mutate(diff = abs(GHB_NH4 - Suc_GABA),
-                              mean = rowMeans(up_degs[2:3])) %>%
-  filter(diff < 1.25 & mean > 2)
+                              mean = rowMeans(up_degs[2:3]))
 
-promo_seq <- c()
-strand <- c()
-
-for (i in 1:nrow(up_degs)) {
-  locus <- up_degs$Chromosome[i]
-  location <- up_degs$Location[i]
-  if (grepl( "complement", location, fixed = TRUE)) {
-    strand <- append(strand, "-")
-    location <- gsub(')', '', location)
-    start_pos <-  str_split(location, pattern="-", simplify = T)[2]
-    start_pos <- as.integer(end_pos) + 4000
-  } else {
-    strand <- append(strand, "+")
-    end_pos <-  str_split(location, pattern="-", simplify = T)[1]
-    start_pos <- as.integer(end_pos) - 4000
-  }
-  if (locus == "AE007869.2") {
-    promo_seq_MM <- genome[1]$`AE007869.2 Agrobacterium tumefaciens str. C58 circular chromosome, complete sequence`[start_pos:end_pos]
-  }
-  if (locus == "AE007870.2") {
-    promo_seq_MM <- genome[2]$`AE007870.2 Agrobacterium tumefaciens str. C58 linear chromosome, complete sequence`[start_pos:end_pos]
-  }
-  if (locus == "AE007872.2") {
-    promo_seq_MM <- genome[3]$`AE007872.2 Agrobacterium tumefaciens str. C58 plasmid At, complete sequence`[start_pos:end_pos]
-  }
-  if (locus == "AE007871.2") {
-    promo_seq_MM <- genome[4]$`AE007871.2 Agrobacterium tumefaciens str. C58 plasmid Ti, complete sequence`[start_pos:end_pos]
-  }
-  promo_seq <- append(promo_seq, as.character(promo_seq_MM))
-}
-
-up_degs <- cbind(up_degs, promo_seq, strand)
-
-neg_strand_promo_comp <- up_degs %>% dplyr::filter(strand == "-") %>% mutate(promo_seq=replace(promo_seq, strand=="-", chartr("ATGC","TACG",promo_seq)))
-
-pos_strand_promo <- up_degs %>% dplyr::filter(strand == "+")
-
-promo_metadata <- bind_rows(neg_strand_promo_comp, pos_strand_promo) %>% arrange(desc(mean))
-
-write.fasta(as.list(promo_metadata$promo_seq), as.character(promo_metadata$Gene_name), "./R_outputs/MAFFT/mafft_promo_upregs.fasta") 
-
-
-```
-
-```{r extract DNA-binding sites based on downregulated genes on 2 conditions, fig.width=15, fig.height=18}
 down_degs <- read.csv("./R_outputs/shared_DEGs_down.csv", row.names=1, dec=",")
 colnames(down_degs) <- "Protein_id"
 
@@ -581,15 +492,16 @@ down_degs <- GHB_NH4_df[c(1,3)] %>% right_join(down_degs) %>% rename(GHB_NH4 = l
 down_degs <- Suc_GABA_df[c(1,3)] %>% right_join(down_degs) %>% rename(Suc_GABA = log2FoldChange)
 down_degs <- down_degs %>% left_join(reads_meta)
 down_degs <- down_degs %>% mutate(diff = abs(GHB_NH4 - Suc_GABA),
-                              mean = rowMeans(down_degs[2:3])) %>%
-  filter(diff < 1.25 & mean < -2.4)
+                              mean = rowMeans(down_degs[2:3]))
+
+degs <- rbind(up_degs, down_degs)
 
 promo_seq <- c()
 strand <- c()
 
-for (i in 1:nrow(down_degs)) {
-  locus <- down_degs$Chromosome[i]
-  location <- down_degs$Location[i]
+for (i in 1:nrow(degs)) {
+  locus <- degs$Chromosome[i]
+  location <- degs$Location[i]
   if (grepl( "complement", location, fixed = TRUE)) {
     strand <- append(strand, "-")
     location <- gsub(')', '', location)
@@ -615,8 +527,15 @@ for (i in 1:nrow(down_degs)) {
   promo_seq <- append(promo_seq, as.character(promo_seq_MM))
 }
 
-down_degs <- cbind(down_degs, promo_seq, strand)
+degs <- cbind(degs, promo_seq, strand)
 
-promo_metadata <- down_degs %>% arrange(desc(mean))
+neg_strand_promo_comp <- degs %>% dplyr::filter(strand == "-") %>% mutate(promo_seq=replace(promo_seq, strand=="-", chartr("ATGC","TACG",promo_seq)))
+
+pos_strand_promo <- degs %>% dplyr::filter(strand == "+")
+
+promo_metadata <- bind_rows(neg_strand_promo_comp, pos_strand_promo) %>% arrange(desc(mean))
+
+write.fasta(as.list(promo_metadata$promo_seq), as.character(promo_metadata$Gene_name), "./R_outputs/blast.fasta") 
+
 
 ```
